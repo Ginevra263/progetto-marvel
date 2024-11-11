@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <title>Login</title>
+</head>
+<body>
+    
+<div class="form-box form-box-login">
+    <h3><strong>Login</strong></h3>
+    <form id="login-form" action="http://localhost:3000/api/login" method="POST">
+        <div class="form-group">
+            <label for="login-email">Username o email</label>
+            <input type="text" id="login-email" name="login-email" placeholder="Inserire username o email">
+            <div id="login-username-error" class="error-message"></div>
+        </div>
+        <div class="form-group password-container">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" name="password" placeholder="Inserire password">
+            <div id="password-error" class="error-message"></div>
+        </div>
+        <button class="login-button" type="submit">Login</button>
+    </form>
+</div>
+
+    <div class="overlay"></div>
+
+</body>
+</html>

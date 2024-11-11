@@ -1,0 +1,225 @@
+body {
+    background-color: rgb(134, 42, 42);
+    background-image: url('../images/sfondo.jpg');
+    background-position: center center;
+    background-repeat: no-repeat;   /* CImmagine appare una sola volta senza replicarsi */
+    background-attachment: fixed;   /* Per far si che l'immagine non scorra con il contenuto della pagina */
+    background-size: cover;     /* Adatta immagine di sfondo per coprire tutta la pagina */
+    font-family: Arial, sans-serif;
+    color: white;   /* Colore testo */
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    position: relative;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* Imposta il box-sizing per includere padding e bordi nelle dimensioni */
+}
+
+.form-box-registrati {
+    background-color: #700808;
+    border: 2px solid #000408;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    width: 300px; /* Larghezza della box */
+}
+.content {
+    display: flex; /* Abilita il layout flessibile */
+    gap: 20px; /* Spazio tra le box */
+    justify-content: center; /* Centra le box nel contenitore */
+    align-items: flex-start; /* Allinea le box all'inizio in verticale */
+}
+input {     /* Questo rende più leggibili i nomi dei campi, e li mette in ordine */
+    width: 100%; /* Larghezza al 100% della box */
+    padding: 10px; /* Spazio interno per il campo input */
+    border: 1px solid #ccc; /* Bordo dell'input */
+    border-radius: 4px; /* Angoli arrotondati per l'input */
+}
+button {
+    background-color: rgb(134, 42, 42); /* Colore del bottone */
+    color: white; /* Colore del testo del bottone */
+    border: none; /* Nessun bordo per il bottone */
+    padding: 10px; /* Spazio interno per il bottone */
+    border-radius: 4px; /* Angoli arrotondati per il bottone */
+    cursor: pointer; /* Cambia il cursore quando si passa sopra */
+    width: 100%; /* Larghezza al 100% del bottone */
+}
+
+button:hover {
+    background-color: #0a0000; /* Colore del bottone al passaggio del mouse */
+}
+
+.form-box-login {
+    background-color: #700808;
+    border: 2px solid #000408;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    width: 500px; /* Larghezza della box */
+}
+body {
+    /*display: flex;    se lo lascio, login si centra nella pagina ma si sfancula la navbar*/
+    justify-content: center;
+    align-items: center;
+}
+
+
+/* Overlay */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: -1;    /* Imposta l'overlay sopra la box principale */
+}
+
+/* Content */
+.content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    align-items: center;
+}
+
+/* Navbar styles */
+.navbar-custom {
+    z-index: 9999;      /* Senza questo overlay prendeva anche la navbar */
+    background-color: rgb(134, 42, 42);
+}
+
+.navbar-right {
+    /*display: flex;*/
+    align-items: center;
+}
+
+.navbar-item img {
+    height: 24px;
+    width: 24px;
+}
+
+.profile-pic {
+    height: 30px;
+    width: 30px;
+    border-radius: 50%;
+}
+
+.navbar-brand {
+    position: center;
+    height: 40px;
+}
+
+.navbar-custom .navbar-brand {
+    color: white;
+}
+
+.navbar-custom .navbar-toggler-icon {
+    color: white;
+}
+
+.navbar-custom .navbar-nav .nav-link {
+    color: white;
+}
+
+.navbar-custom .navbar-nav .nav-link:hover {
+    color: rgb(28, 2, 3);
+    font-weight: bolder;
+}
+
+.nav-item .dropdown .dropdown-menu {
+    color: rgb(252, 252, 252);
+}
+/* Dropdown styles */
+.dropdown {
+    color: white;
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown:hover {
+    color: rgb(28, 2, 3);
+    font-weight: bolder;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: rgb(134, 42, 42);
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,1);
+    z-index: 1;
+}
+
+.nav-item.dropdown:hover .dropdown-menu {
+    color:rgb(0, 0, 0);
+    display: block;
+}
+
+.dropdown-menu {
+    background-color: rgb(134, 42, 42);
+}
+
+.dropdown-menu .dropdown-item{
+    background-color: rgb(134, 42, 42); /* Sfondo del menu dropdown */
+    color: white; /* Colore del testo degli elementi del menu */
+    padding: 8px 12px; /* Spazio interno per gli elementi del menu */
+}
+
+.dropdown-menu .dropdown-item:hover {
+    background-color: rgb(134, 42, 42);
+    color: rgb(0, 0, 0);
+    font-weight: bolder;
+    padding: 10px;
+}
+
+.dropdown-item a {
+    text-decoration: none;
+    display: block;
+    padding: center;
+}
+
+.dropdown-item a:hover {
+    background-color: #f9f9fa;
+    color: rgb(251, 252, 251);
+    text-decoration: none;
+    font-weight: bolder;
+    padding: 10px;
+
+}
+
+.error-message {
+    color:white;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+
+main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2em;
+    justify-content: center;      /* Centra verticalmente */
+    padding: 2em;
+    width: 100%;
+}
+
+.main-title {
+    margin-top: 20px;
+    font-size: 2.5em;
+    color: #ED1D24;
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+    font-weight: bolder;
+}
