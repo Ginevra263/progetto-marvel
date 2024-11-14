@@ -1,16 +1,14 @@
-document.getElementById('Registrati').addEventListener('submit', function(event) {
-    console.log("Registrati");
-    event.preventDefault(); // Evita che il modulo venga inviato normalmente
+function registerUser(event) {
+    event.preventDefault();
 
     const username = document.getElementById('username').value;
     const password = document.getElementById('register-password').value;
     const email = document.getElementById('email').value;
+    const superhero = document.getElementById('superhero').value;
 
-    // Crea l'oggetto dei dati da inviare
-    const data = { username, email, password };
+    const data = { username, email, password, superhero };
 
-    // Esegui la richiesta POST per registrare l'utente
-    fetch('http://localhost:3000/register', { 
+    fetch('http://localhost:3000/register', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -19,30 +17,22 @@ document.getElementById('Registrati').addEventListener('submit', function(event)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            alert('Registrazione avvenuta con successo!');
-        } else {
-            alert('Errore nella registrazione: ' + data.message);
-        }
+        alert(data.success ? 'Registrazione avvenuta con successo!' : 'Errore nella registrazione: ' + data.message);
     })
     .catch(error => {
         alert('Errore di rete: ' + error.message);
     });
-});
+}
 
-//// Esegui la richiesta POST per loggare l'utente
-document.getElementById('login-form').addEventListener('submit', function(event) {
-    event.preventDefault(); // Evita che il modulo venga inviato normalmente
+function loginUser(event) {
+    event.preventDefault();
 
     const email = document.getElementById('login-email').value;
-    const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
 
-    // Crea l'oggetto dei dati da inviare
     const data = { email, password };
 
-    // Esegui la richiesta POST per il login
-    fetch('http://localhost:3000/login', { 
+    fetch('http://localhost:3000/login', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -51,14 +41,9 @@ document.getElementById('login-form').addEventListener('submit', function(event)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            alert('Login effettuato con successo!');
-        } else {
-            alert('Credenziali non valide: ' + data.message);
-        }
+        alert(data.success ? 'Login effettuato con successo!' : 'Credenziali non valide: ' + data.message);
     })
     .catch(error => {
         alert('Errore di rete: ' + error.message);
     });
-});
-
+}

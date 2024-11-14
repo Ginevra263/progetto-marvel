@@ -1,30 +1,31 @@
+require('dotenv').config(); // Per caricare le variabili d'ambiente
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-require('dotenv').config(); // Per caricare le variabili d'ambiente
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana:Lampo411@cluster0.9ky8i.mongodb.net/mydatabase";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:Lampo411@marvel.vtlvt.mongodb.net/marvel?retryWrites=true&w=majority&appName=marvel";
 
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: '*', // Accetta richieste da qualsiasi origine
+    origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true, // Abilita le credenziali se necessario
-    optionsSuccessStatus: 204, // Imposta il codice di stato di successo per le richieste OPTIONS
+    credentials: true,
+    optionsSuccessStatus: 204,
 }));
 
 // Definizione dello schema utente
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    superhero: { type: String }  // Campo aggiunto per l'eroe preferito
 });
 
 // Creazione del modello utente
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model('users', userSchema);
 
 // Connessione a MongoDB
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -36,22 +37,19 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 
 // Registrazione
 app.post('/register', async (req, res) => {
-    const { username, email, password } = req.body;
+    const { username, email, password, superhero } = req.body;
 
-    // Verifica se i dati sono validi
     if (!username || !email || !password) {
         return res.status(400).json({ message: 'Tutti i campi sono obbligatori' });
     }
 
     try {
-        // Verifica se l'utente esiste già
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ success: false, message: 'Utente già registrato' });
         }
 
-        // Creazione di un nuovo utente
-        const newUser = new User({ username, email, password });
+        const newUser = new User({ username, email, password, superhero });
         await newUser.save();
         res.status(201).json({ success: true, message: 'Registrazione avvenuta con successo' });
     } catch (error) {
@@ -68,13 +66,11 @@ app.post('/login', async (req, res) => {
     }
 
     try {
-        // Cerca l'utente nel database
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ success: false, message: 'Utente non trovato' });
         }
 
-        // Verifica la password
         if (user.password !== password) {
             return res.status(400).json({ success: false, message: 'Password errata' });
         }
