@@ -61,17 +61,12 @@ button:hover {
 }
 
 .form-box-login {
-    background-color: #700808;
-    border: 2px solid #000408;
+    background-color: #700808 !important;   /*senza l'important non mi carica i colori*/
+    border: 2px solid #000408 !important;
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     width: 500px; /* Larghezza della box */
-}
-body {
-    /*display: flex;    se lo lascio, login si centra nella pagina ma si sfancula la navbar*/
-    justify-content: center;
-    align-items: center;
 }
 
 
