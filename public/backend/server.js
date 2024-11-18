@@ -1,20 +1,32 @@
-require('dotenv').config(); // Per caricare le variabili d'ambiente
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-
+const path = require('path');
+/*const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');*/
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:Lampo411@marvel.vtlvt.mongodb.net/marvel?retryWrites=true&w=majority&appName=marvel";
+const PUBLIC_KEY= process.env.PUBLIC_KEY || 'https://marvel.com';
+const PRIVATE_KEY= process.env.PRIVATE_KEY || 'https://marvel.com';
+const dotenv = require('dotenv').config();
 
-// Middleware
-app.use(express.json());
+dotenv.config();
 app.use(cors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
     optionsSuccessStatus: 204,
 }));
+
+
+// Middleware
+app.use(express.json());
+
+//servire i file del frontend
+app.use(express.static(path.join(__dirname, '../frontend'))); 
+app.use(express.static(path.join(__dirname, 'public'))); 
+
 
 // Definizione dello schema utente
 const userSchema = new mongoose.Schema({
@@ -80,6 +92,23 @@ app.post('/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'Errore del server' });
     }
 });
+
+//funzione per gettare i supereroi con le api key
+app.get('/api/marvel', async (req, res) => {
+    const timestamp = new Date().getTime();
+    const hash = require('crypto').createHash('md5').update(timestamp + PRIVATE_KEY + PUBLIC_KEY).digest('hex');
+    const url = `https://gateway.marvel.com/v1/public/characters?ts=${timestamp}&apikey=${PUBLIC_KEY}&hash=${hash}`;
+    
+    try {
+        const response = await axios.get(url);
+        res.json(response.data);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Errore durante la chiamata all\'API');
+    }
+});
+
+app.listen(3000, () => console.log('Server in ascolto sulla porta 3000'));
 
 // Avvio del server
 app.listen(PORT, () => {

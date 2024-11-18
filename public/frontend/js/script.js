@@ -42,8 +42,19 @@ function loginUser(event) {
     .then(response => response.json())
     .then(data => {
         alert(data.success ? 'Login effettuato con successo!' : 'Credenziali non valide: ' + data.message);
+        window.location.href='home.html'; 
     })
     .catch(error => {
         alert('Errore di rete: ' + error.message);
     });
 }
+
+//funzione fetch per api key
+fetch('/api/marvel')
+  .then(response => response.json())
+  .then(data => {
+      console.log(data);
+      document.getElementById('output').innerHTML = JSON.stringify(data.data.results, null, 2);
+  })
+  .catch(error => console.error('Errore:', error));
+
