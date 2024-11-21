@@ -1,10 +1,10 @@
-const PUBLIC_KEY= process.env.PUBLIC_KEY || 'https://marvel.com';
-const PRIVATE_KEY= process.env.PRIVATE_KEY || 'https://marvel.com';
+const PUBLIC_KEY="af7b1b70227c7699019dc5b3310f327d";
+const PRIVATE_KEY="1389efde3a9d301441b69d6a53c1ae95e8b63520"; 
 const timestamp = new Date().getTime();     //serve all'API KEY per generare hash di sicurezza
 const hash = CryptoJS.MD5(timestamp + PRIVATE_KEY + PUBLIC_KEY).toString();
 const url = `https://gateway.marvel.com/v1/public/characters?ts=${timestamp}&apikey=${PUBLIC_KEY}&hash=${hash}`;    //creazione url per chiamata API
 
-console.log(process.env)
+console.log(PRIVATE_KEY); 
 fetch(url)
 .then(response => response.json())
 .then(data => {

@@ -1,7 +1,8 @@
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
 /*const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');*/
 const app = express();
@@ -9,9 +10,9 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:Lampo411@marvel.vtlvt.mongodb.net/marvel?retryWrites=true&w=majority&appName=marvel";
 const PUBLIC_KEY= process.env.PUBLIC_KEY || 'https://marvel.com';
 const PRIVATE_KEY= process.env.PRIVATE_KEY || 'https://marvel.com';
-const dotenv = require('dotenv').config();
-
+import dotenv from 'dotenv';
 dotenv.config();
+
 app.use(cors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -23,9 +24,15 @@ app.use(cors({
 // Middleware
 app.use(express.json());
 
-//servire i file del frontend
-app.use(express.static(path.join(__dirname, '../frontend'))); 
-app.use(express.static(path.join(__dirname, 'public'))); 
+
+// Obtain the current directory name (__dirname equivalent in ES6)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve frontend files
+app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(path.join(__dirname, 'public')));
+
 
 
 // Definizione dello schema utente
@@ -108,7 +115,7 @@ app.get('/api/marvel', async (req, res) => {
     }
 });
 
-app.listen(3000, () => console.log('Server in ascolto sulla porta 3000'));
+//app.listen(3000, () => console.log('Server in ascolto sulla porta 3000'));
 
 // Avvio del server
 app.listen(PORT, () => {
