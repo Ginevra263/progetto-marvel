@@ -1,0 +1,108 @@
+Premessa
+La specifica del problema che deve essere affrontato `e per sua natura incompleta
+e pu`o essere ambigua. Il candidato deve essere in grado di valutare
+eventuali soluzioni alternative e giustificare le scelte implementative
+adottate. Le motivazioni delle scelte fatte vanno inoltre documentate nel
+progetto. Il lavoro consiste di cinque fasi principali: i) analisi dei requisiti;
+ii) identificazione delle funzionalit`a da sviluppare; iii) progettazione
+della struttura e della presentazione delle pagine web; iv) progettazione
+della sorgente di informazioni statica o dinamica; v) implementazione
+dell’applicazione stessa.
+2 Requisiti
+Il progetto si pone l’obiettivo di sviluppare l’applicazione web Album
+delle Figurine dei Super Eroi (AFSE), un sito di gestione di figurine
+elettroniche di super eroi. AFSE implementa un album elettronico di
+figurine con l’acquisto di pacchetti chiusi, il cui contenuto `e ignoto, e
+la piattaforma per lo scambio di figurine tra giocatori. `E composto dai
+seguenti macro-scenari principali:
+– gestione del profilo dell’utente;
+– acquisto (simulato) di crediti da spendere in piattaforma e pacchetti
+di figurine
+– gestione dello scambio di figurine.
+Di seguito sono analizzate in dettaglio le caratteristiche dei
+macro-scenari introdotti. Il primo macro-scenario (gestione del profilo
+dell’utente) consiste nella gestione classica di un profilo utente, con
+l’acquisizione dei dati principali, la loro modifica ed eventualmente anche
+la rimozione del profilo stesso. L’applicazione prevede perci`o una fase di
+registrazione utente dove verranno collezionate informazioni quali nome
+utente, indirizzo email, password, super eroe preferito etc. Una volta registrato,
+l’utente pu`o collegarsi all’applicazione e creare un album di figurine
+inizialmente vuoto.
+1
+Copyright Università degli Studi di Milano
+Progetto di Programmazione Web e Mobile - A.A. 2023/2024
+Il secondo macro-scenario (acquisto di pacchetti di figurine) consiste
+nell’acquisto di pacchetti di figurine. A tale scopo, `e necessario prevedere
+la gestione di un platfond di crediti virtuali che permettono di acquistare
+figurine. In particolare, l’utente acquista crediti sufficienti da poter utilizzare
+per comprare uno o pi`u pacchetti di figurine (1 credito corrisponde
+a 1 pacchetto). Ogni pacchetto contiene 5 figurine casuali. Ogni figurina
+rappresenta un super eroe. L’elenco dei super eroi viene acquisito tramite
+le API REST del portale (https://developer.marvel.com/docs). Per
+ogni super eroe dovranno essere gestite le informazioni principali specificate
+di seguito.
+L’ultimo scenario (gestione dello scambio di figurine) prevede che la
+piattaforma fornisca uno spazio di scambio figurine dove ogni utente registrato
+pu`o proporre le sue figurine doppie in cambio di figurine mancanti.
+2.1 Funzionalit`a Front-end
+Le operazioni base che devono essere presentate al momento della discussione
+del progetto sono le seguenti:
+– registrazione e login al sito;
+– acquisto dei crediti;
+– acquisto dei pacchetti di figurine;
+– visualizzazione di informazioni relative a ogni supereroe (almeno:
+nome, descrizione, immagine);
+– visualizzazione dei dati di dettaglio per ogni supereroe che `e stato
+trovato (oltre ai precedenti anche: series, events e comics in cui il
+supereroe compare);
+– inserimento di possibili proposte di scambio nella piattaforma;
+– visualizzazione dei baratti disponibili e accettazione di una proposta.
+Allo startup dell’applicazione, tutti i dati necessari per iniziare devono
+essere disponibili (in formato XML o JSON), memorizzati nel web storage
+e visualizzati nell’applicazione web.
+Operazioni e funzionalit`a aggiuntive possono essere implementate a
+piacere. Le pagine web devono essere implementate utilizzando HTML5,
+CSS3 e JavaScript, e devono seguire un paradigma di separazione tra la
+struttura (HTML5) e la rappresentazione (CSS3) della pagina web.
+Le informazioni visualizzate all’interno delle pagine del sito web devono
+essere memorizzate e accedute tramite un portale di back-end sviluppato
+in NodeJS che immagazziner`a i dati in MongoDB. Il backend esporr`a
+quindi un insieme di API necessarie alla gestione di tutte le informazioni
+e dati non presenti nel portale MARVEL.
+2
+Copyright Università degli Studi di Milano
+Progetto di Programmazione Web e Mobile - A.A. 2023/2024
+In aggiunta alle operazioni base, devono essere sviluppate almeno 3
+delle seguenti operazioni aggiuntive:
+– estendere le funzionalit`a del baratto dove un utente pu`o proporre
+scambi pi`u complessi (e.g. due figurine per una);
+– inserire la possiblit`a di vendere figurine per crediti;
+– prevedere un utente amministratore che possa generare offerte per
+pacchetti di figurine speciali (ad esempio 1.5 crediti per una busta
+maxi da 9 figurine);
+– gestire i controlli di integrit`a negli scambi in modo che non si possano
+accettare scambi dove la figurina in arrivo `e gi`a presente nell’album,
+oppure proporre scambi con due o pi`u figurine uguali.
+2.2 Funzionalit`a Back-end
+Il progetto deve fornire un back-end che espone le funzionalit`a di immagazzinamento
+e gestione dei dati necessari al portale. Ogni funzionalit`
+a dovr`a essere esposta con la metodologia REST tramite APIs e i
+dati verranno immagazzinati tramite MongoDB. Per una validazione del
+back-end `e richiesto lo sviluppo di uno swagger che permetta di testare i
+vari servizi esposti. La tecnologia da utilizzare `e nodeJS
+3 Informazioni Generali
+Il progetto `e valido per l’anno accademico 2023/2024 (L’ultimo appello
+utile per la consegna `e quello di Luglio 2025). Prima di iniziare il progetto
+bisogna inviare una mail valerio.bellandi@unimi.it e specificare se
+si vogliono utilizzare particolari tecnologie o framework non visti durante
+il corso (in questo caso si deve aspettare una conferma dal professore).
+Una volta terminato, il progetto deve essere caricato all’indirizzo upload.
+di.unimi.it. `E necessario presentare:
+1. Il codice sorgente.
+2. Una relazione dettagliata (in formato pdf) che illustra la struttura e
+presentazione del sito web, come sono state realizzate le operazioni
+richieste e le scelte implementative che sono state fatte.
+3. Delle prove di funzionamento, consistenti in una serie di schermate
+dimostrative comprovanti la corretta esecuzione delle operazioni previste.
+Per ogni ulteriore chiarimento: valerio.bellandi@unimi.it, antongiacomo.
+polimeno@unimi.it
