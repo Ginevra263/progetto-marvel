@@ -2,52 +2,52 @@
 const allHeroes = [
     {
         name: "Spider-Man",
-        image: "https://via.placeholder.com/400x300.png?text=Spider-Man",
+        image: "images/heroes/spiderman.jpg",
         description: "L'Uomo Ragno, il supereroe di quartiere"
     },
     {
         name: "Iron Man",
-        image: "https://via.placeholder.com/400x300.png?text=Iron+Man",
+        image: "images/heroes/ironman.jpg",
         description: "Il geniale miliardario in armatura"
     },
     {
         name: "Thor",
-        image: "https://via.placeholder.com/400x300.png?text=Thor",
+        image: "images/heroes/thor.jpg",
         description: "Il potente dio del tuono"
     },
     {
         name: "Black Widow",
-        image: "https://via.placeholder.com/400x300.png?text=Black+Widow",
+        image: "images/heroes/blackwidow.jpg",
         description: "La letale spia degli Avengers"
     },
     {
         name: "Hulk",
-        image: "https://via.placeholder.com/400x300.png?text=Hulk",
+        image: "images/heroes/hulk.jpg",
         description: "Il gigante verde dalla forza incredibile"
     },
     {
         name: "Doctor Strange",
-        image: "https://via.placeholder.com/400x300.png?text=Doctor+Strange",
+        image: "images/heroes/drstrange.jpg",
         description: "Il Maestro delle Arti Mistiche"
     },
     {
         name: "Black Panther",
-        image: "https://via.placeholder.com/400x300.png?text=Black+Panther",
+        image: "images/heroes/blackpanther.jpg",
         description: "Il protettore del Wakanda"
     },
     {
         name: "Captain America",
-        image: "https://via.placeholder.com/400x300.png?text=Captain+America",
+        image: "images/heroes/captainamerica.jpg",
         description: "Il primo Vendicatore"
     },
     {
         name: "Wolverine",
-        image: "https://via.placeholder.com/400x300.png?text=Wolverine",
+        image: "images/heroes/wolverine.jpg",
         description: "Il mutante dagli artigli di adamantio"
     },
     {
         name: "Deadpool",
-        image: "https://via.placeholder.com/400x300.png?text=Deadpool",
+        image: "images/heroes/deadpool.jpg",
         description: "Il mercenario chiacchierone"
     }
 ];
@@ -56,17 +56,17 @@ const allHeroes = [
 function createHeroCard(hero, isDuplicate = false, duplicateCount = 0) {
     return `
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform transition-transform hover:scale-105">
-            <img src="${hero.image}" alt="${hero.name}" class="w-full h-48 object-cover">
-            <div class="p-4">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">${hero.name}</h3>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">${hero.description}</p>
+            <div class="relative aspect-[2/3]">
+                <img src="${hero.image}" alt="${hero.name}" class="w-full h-full object-cover">
                 ${isDuplicate ? `
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm font-medium text-primary-600 dark:text-primary-400">
-                            Doppioni: ${duplicateCount}
-                        </span>
+                    <div class="absolute top-2 right-2 bg-primary-600 text-white px-2 py-0.5 rounded-full text-xs font-semibold">
+                        ${duplicateCount} doppioni
                     </div>
                 ` : ''}
+            </div>
+            <div class="p-4">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2 text-center">${hero.name}</h3>
+                <p class="text-xs text-gray-600 dark:text-gray-400 text-center">${hero.description}</p>
             </div>
         </div>
     `;
@@ -75,12 +75,25 @@ function createHeroCard(hero, isDuplicate = false, duplicateCount = 0) {
 // Funzione per mostrare le carte possedute o mancanti
 function showTab(tab) {
     const collectedTab = document.getElementById('collected-cards');
+    const duplicatesTab = document.getElementById('duplicates-cards');
     const missingTab = document.getElementById('missing-cards');
     const buttons = document.querySelectorAll('.tab-button');
 
+    // Nascondi tutte le sezioni
+    collectedTab.classList.add('hidden');
+    duplicatesTab.classList.add('hidden');
+    missingTab.classList.add('hidden');
+
     // Aggiorna lo stile dei pulsanti
     buttons.forEach(button => {
-        if (button.textContent.toLowerCase().includes(tab === 'collected' ? 'possedute' : 'mancanti')) {
+        const buttonText = button.textContent.toLowerCase().trim();
+        const isActive = (
+            (tab === 'collected' && buttonText.includes('possedute')) ||
+            (tab === 'duplicates' && buttonText.includes('doppie')) ||
+            (tab === 'missing' && buttonText.includes('mancanti'))
+        );
+
+        if (isActive) {
             button.classList.add('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
             button.classList.remove('border-transparent', 'text-gray-500');
         } else {
@@ -89,15 +102,20 @@ function showTab(tab) {
         }
     });
 
-    // Mostra/nascondi le sezioni appropriate
-    if (tab === 'collected') {
-        collectedTab.classList.remove('hidden');
-        missingTab.classList.add('hidden');
-        displayCollectedCards();
-    } else {
-        collectedTab.classList.add('hidden');
-        missingTab.classList.remove('hidden');
-        displayMissingCards();
+    // Mostra la sezione appropriata
+    switch(tab) {
+        case 'collected':
+            collectedTab.classList.remove('hidden');
+            displayCollectedCards();
+            break;
+        case 'duplicates':
+            duplicatesTab.classList.remove('hidden');
+            displayDuplicateCards();
+            break;
+        case 'missing':
+            missingTab.classList.remove('hidden');
+            displayMissingCards();
+            break;
     }
 }
 
@@ -107,8 +125,30 @@ function displayCollectedCards() {
     const collectedCards = allHeroes.filter(hero => AppState.album.cards.has(hero.name));
     
     container.innerHTML = collectedCards.map(hero => 
-        createHeroCard(hero, true, AppState.album.duplicates[hero.name] || 0)
+        createHeroCard(hero)
     ).join('');
+}
+
+// Funzione per mostrare le carte doppie
+function displayDuplicateCards() {
+    const container = document.getElementById('duplicates-cards');
+    const duplicateCards = allHeroes.filter(hero => 
+        AppState.album.cards.has(hero.name) && 
+        AppState.album.duplicates[hero.name] > 0
+    );
+    
+    container.innerHTML = duplicateCards.map(hero => 
+        createHeroCard(hero, true, AppState.album.duplicates[hero.name])
+    ).join('');
+
+    // Mostra un messaggio se non ci sono doppioni
+    if (duplicateCards.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <p class="text-gray-500 dark:text-gray-400">Non hai ancora carte doppie.</p>
+            </div>
+        `;
+    }
 }
 
 // Funzione per mostrare le carte mancanti
@@ -148,6 +188,14 @@ function updateAlbumStats() {
 
 // Inizializzazione
 document.addEventListener('DOMContentLoaded', () => {
+    // Modifica il layout della griglia per tutte le sezioni di carte
+    const cardGrids = ['collected-cards', 'duplicates-cards', 'missing-cards'];
+    cardGrids.forEach(gridId => {
+        const grid = document.getElementById(gridId);
+        // Mantieni grid-cols-3 ma aggiungi gap più piccolo
+        grid.className = grid.className.replace('gap-6', 'gap-4');
+    });
+
     // Mostra le carte possedute inizialmente
     showTab('collected');
     

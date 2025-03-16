@@ -54,7 +54,7 @@
                         <a href="pacchetti.html" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             Pacchetti
                         </a>
-                        <a href="#" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        <a href="scambi.html" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             Scambi
                         </a>
                         <a href="album.html" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
@@ -194,7 +194,7 @@
                     </div>
                     <div class="mt-5 flow-root">
                         <ul role="list" class="-mb-8">
-                            <li class="relative pb-8">
+                            <li id="last-pack-opening" class="hidden">
                                 <div class="relative flex space-x-3">
                                     <div>
                                         <span class="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center ring-8 ring-white dark:ring-gray-800">
@@ -207,12 +207,15 @@
                                         <div>
                                             <div class="text-sm text-gray-500 dark:text-gray-400">
                                                 <span class="font-medium text-gray-900 dark:text-white">Pacchetto Aperto</span>
-                                                · Trovati 5 nuovi super eroi
+                                                · <span id="last-pack-cards">Trovati 5 nuovi super eroi</span>
                                             </div>
-                                            <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">20 minuti fa</p>
+                                            <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400" id="last-pack-time">Nessun pacchetto aperto</p>
                                         </div>
                                     </div>
                                 </div>
+                            </li>
+                            <li id="no-activity" class="text-center text-gray-500 dark:text-gray-400">
+                                Nessuna attività recente
                             </li>
                         </ul>
                     </div>
@@ -263,23 +266,23 @@
                                     </span>
                                 </div>
                                 <div class="text-right">
-                                    <span class="text-xs font-semibold inline-block text-primary-700 dark:text-primary-300">
-                                        45%
+                                    <span id="progress-percentage" class="text-xs font-semibold inline-block text-primary-700 dark:text-primary-300">
+                                        0%
                                     </span>
                                 </div>
                             </div>
                             <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-primary-100 dark:bg-primary-900/30">
-                                <div style="width:45%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-primary-600 dark:bg-primary-500 transition-all duration-500"></div>
+                                <div id="progress-bar" style="width:0%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-primary-600 dark:bg-primary-500 transition-all duration-500"></div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4 mt-4">
                             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
                                 <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400">Figurine Mancanti</h4>
-                                <p class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">55</p>
+                                <p id="missing-cards" class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">0</p>
                             </div>
                             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
                                 <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400">Figurine Doppie</h4>
-                                <p class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">12</p>
+                                <p id="duplicate-total" class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">0</p>
                             </div>
                         </div>
                     </div>
@@ -290,13 +293,67 @@
 
     <script src="js/state.js"></script>
     <script>
+        // Funzione per formattare il tempo trascorso
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+            
+            let interval = seconds / 31536000;
+            if (interval > 1) return Math.floor(interval) + " anni fa";
+            
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + " mesi fa";
+            
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + " giorni fa";
+            
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + " ore fa";
+            
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + " minuti fa";
+            
+            return "pochi secondi fa";
+        }
+
         // Funzione per aggiornare le statistiche della dashboard
         function updateDashboardStats() {
+            // Aggiorna i contatori base
             document.getElementById('user-credits').textContent = AppState.user.credits;
             document.getElementById('total-packs').textContent = AppState.user.totalPacks;
             document.getElementById('total-cards').textContent = AppState.user.totalCards;
             document.getElementById('duplicate-cards').textContent = AppState.user.duplicateCards;
             document.getElementById('active-trades').textContent = AppState.user.activeTrades;
+
+            // Aggiorna il progresso dell'album
+            const totalHeroes = 10; // Numero totale di eroi disponibili
+            const collectedHeroes = AppState.album.cards ? AppState.album.cards.size : 0;
+            const progressPercentage = Math.round((collectedHeroes / totalHeroes) * 100);
+            
+            // Aggiorna la barra di progresso
+            document.getElementById('progress-percentage').textContent = `${progressPercentage}%`;
+            document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+            
+            // Calcola e aggiorna le figurine mancanti
+            const missingCards = totalHeroes - collectedHeroes;
+            document.getElementById('missing-cards').textContent = missingCards;
+            
+            // Calcola il totale delle figurine doppie
+            let duplicateTotal = 0;
+            if (AppState.album.duplicates) {
+                duplicateTotal = Object.values(AppState.album.duplicates).reduce((sum, count) => sum + count, 0);
+            }
+            document.getElementById('duplicate-total').textContent = duplicateTotal;
+
+            // Aggiorna l'ultima attività di apertura pacchetto
+            if (AppState.lastPackOpening) {
+                document.getElementById('last-pack-opening').classList.remove('hidden');
+                document.getElementById('no-activity').classList.add('hidden');
+                document.getElementById('last-pack-time').textContent = timeAgo(AppState.lastPackOpening.timestamp);
+                document.getElementById('last-pack-cards').textContent = `Trovati ${AppState.lastPackOpening.cards.length} nuovi super eroi`;
+            } else {
+                document.getElementById('last-pack-opening').classList.add('hidden');
+                document.getElementById('no-activity').classList.remove('hidden');
+            }
         }
 
         // Inizializzazione
@@ -307,6 +364,7 @@
             AppState.subscribe('credits', updateDashboardStats);
             AppState.subscribe('packs', updateDashboardStats);
             AppState.subscribe('album', updateDashboardStats);
+            AppState.subscribe('lastPackOpening', updateDashboardStats);
         });
     </script>
 </body>

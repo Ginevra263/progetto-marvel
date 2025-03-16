@@ -18,6 +18,12 @@ let userPacks = [
     }
 ];
 
+// Array delle carte disponibili
+const allHeroes = [
+    "Spider-Man", "Iron Man", "Thor", "Black Widow", "Hulk",
+    "Doctor Strange", "Black Panther", "Captain America", "Wolverine", "Deadpool"
+];
+
 // Funzione per creare la card di un pacchetto
 function createPackCard(pack) {
     const openedClass = pack.opened ? 'opacity-50' : '';
@@ -99,34 +105,93 @@ function openPack(packId) {
     viewPack(packId);
 }
 
+// Funzione per generare carte casuali
+function generateRandomCards(count) {
+    const cards = [];
+    for (let i = 0; i < count; i++) {
+        const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)];
+        cards.push({
+            name: randomHero,
+            isNew: !AppState.album.cards.has(randomHero)
+        });
+        
+        // Aggiorna l'album
+        AppState.album.cards.add(randomHero);
+        if (!AppState.album.duplicates[randomHero]) {
+            AppState.album.duplicates[randomHero] = 0;
+        }
+        if (!cards[cards.length - 1].isNew) {
+            AppState.album.duplicates[randomHero]++;
+        }
+    }
+    AppState.notify('album');
+    return cards;
+}
+
+// Funzione per mostrare il modal con le carte
+function showPackOpeningModal(cards) {
+    const modal = document.getElementById('pack-opening-modal');
+    const cardsContainer = document.getElementById('cards-container');
+    
+    cardsContainer.innerHTML = cards.map(card => `
+        <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
+            <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${card.name}</h4>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                ${card.isNew ? 'Nuova!' : `Doppione (${AppState.album.duplicates[card.name]})`}
+            </p>
+        </div>
+    `).join('');
+
+    modal.classList.remove('hidden');
+}
+
 // Funzione per aprire un nuovo pacchetto
 function openNewPack() {
     // Verifica se l'utente ha abbastanza crediti
     if (AppState.user.credits < 1) {
-        alert('Crediti insufficienti per aprire un nuovo pacchetto!');
+        alert('Non hai abbastanza crediti per aprire un pacchetto!');
         return;
     }
 
-    // Crea un nuovo pacchetto con carte casuali
-    const allHeroes = [
-        "Spider-Man", "Iron Man", "Thor", "Black Widow", "Hulk",
-        "Doctor Strange", "Black Panther", "Captain America", "Wolverine", "Deadpool"
-    ];
-    
+    // Sottrai un credito
+    AppState.user.credits--;
+
+    // Genera 5 carte casuali
+    const cards = generateRandomCards(5);
+
+    // Aggiorna le statistiche
+    AppState.user.totalPacks = (AppState.user.totalPacks || 0) + 1;
+    AppState.user.totalCards = (AppState.user.totalCards || 0) + 5;
+
+    // Salva il timestamp dell'apertura del pacchetto
+    AppState.lastPackOpening = {
+        timestamp: new Date().toISOString(),
+        cards: cards.map(card => card.name)
+    };
+
+    // Crea un nuovo pacchetto e aggiungilo alla lista
     const newPack = {
-        id: Date.now(), // Usa il timestamp come ID univoco
+        id: Date.now(),
         type: "Standard",
-        cards: Array.from({ length: 5 }, () => allHeroes[Math.floor(Math.random() * allHeroes.length)]),
+        cards: cards.map(card => card.name),
         opened: true,
         purchaseDate: new Date().toISOString().split('T')[0],
         openedDate: new Date().toISOString().split('T')[0],
         cost: 1
     };
 
-    // Aggiorna lo stato
-    AppState.updateCredits(-1); // Sottrai un credito
-    AppState.addPack(newPack);
-    viewPack(newPack.id);
+    // Aggiungi il pacchetto alla lista
+    if (!AppState.packs) {
+        AppState.packs = [];
+    }
+    AppState.packs.unshift(newPack);
+
+    // Aggiorna l'interfaccia
+    updateAllStats();
+    displayPacks(AppState.packs);
+
+    // Mostra le carte nel modal
+    showPackOpeningModal(cards);
 }
 
 // Funzione per chiudere il modal
@@ -170,6 +235,34 @@ function updateAllStats() {
 
 // Inizializzazione
 document.addEventListener('DOMContentLoaded', () => {
+    // Inizializza l'AppState se necessario
+    if (!AppState.album) {
+        AppState.album = {
+            cards: new Set(),
+            duplicates: {}
+        };
+    }
+    if (!AppState.user) {
+        AppState.user = {
+            credits: 50,
+            totalPacks: 0,
+            totalCards: 0,
+            duplicateCards: 0
+        };
+    }
+
+    // Aggiorna i contatori
+    document.getElementById('user-credits').textContent = AppState.user.credits;
+    document.getElementById('total-packs').textContent = AppState.user.totalPacks;
+    document.getElementById('total-cards').textContent = AppState.user.totalCards;
+    document.getElementById('duplicate-cards').textContent = AppState.user.duplicateCards;
+
+    // Calcola e aggiorna la percentuale di completamento
+    const totalHeroes = allHeroes.length;
+    const collectedHeroes = AppState.album.cards.size;
+    const progressPercentage = Math.round((collectedHeroes / totalHeroes) * 100);
+    document.getElementById('completion-percentage').textContent = `${progressPercentage}%`;
+
     // Mostra i pacchetti iniziali
     displayPacks(AppState.packs);
 

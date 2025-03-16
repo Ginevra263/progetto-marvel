@@ -3,11 +3,10 @@ const AppState = {
     // Dati dell'utente
     user: {
         credits: 50,
-        totalPacks: 15,
-        totalCards: 75,
+        totalPacks: 0,
+        totalCards: 0,
         uniqueCards: 63,
-        duplicateCards: 12,
-        activeTrades: 3
+        duplicateCards: 0
     },
 
     // Album dell'utente
@@ -18,6 +17,8 @@ const AppState = {
 
     // Pacchetti dell'utente
     packs: [],
+
+    lastPackOpening: null,
 
     // Funzione per aggiornare i crediti
     updateCredits(amount) {
@@ -113,8 +114,25 @@ const AppState = {
         if (this.listeners[event]) {
             this.listeners[event].forEach(callback => callback());
         }
+    },
+
+    // Metodo per notificare i cambiamenti
+    notify(event) {
+        if (this.listeners[event]) {
+            this.listeners[event].forEach(callback => callback());
+        }
+    },
+
+    // Metodo per rimuovere una sottoscrizione
+    unsubscribe(event, callback) {
+        if (this.listeners[event]) {
+            this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+        }
     }
 };
 
 // Carica lo stato all'avvio
-AppState.loadState(); 
+AppState.loadState();
+
+// Esporta AppState
+window.AppState = AppState; 
