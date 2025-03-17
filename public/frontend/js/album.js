@@ -1,210 +1,337 @@
-// Definizione di tutti gli eroi disponibili con le loro immagini
-const allHeroes = [
-    {
-        name: "Spider-Man",
-        image: "images/heroes/spiderman.jpg",
-        description: "L'Uomo Ragno, il supereroe di quartiere"
-    },
-    {
-        name: "Iron Man",
-        image: "images/heroes/ironman.jpg",
-        description: "Il geniale miliardario in armatura"
-    },
-    {
-        name: "Thor",
-        image: "images/heroes/thor.jpg",
-        description: "Il potente dio del tuono"
-    },
-    {
-        name: "Black Widow",
-        image: "images/heroes/blackwidow.jpg",
-        description: "La letale spia degli Avengers"
-    },
-    {
-        name: "Hulk",
-        image: "images/heroes/hulk.jpg",
-        description: "Il gigante verde dalla forza incredibile"
-    },
-    {
-        name: "Doctor Strange",
-        image: "images/heroes/drstrange.jpg",
-        description: "Il Maestro delle Arti Mistiche"
-    },
-    {
-        name: "Black Panther",
-        image: "images/heroes/blackpanther.jpg",
-        description: "Il protettore del Wakanda"
-    },
-    {
-        name: "Captain America",
-        image: "images/heroes/captainamerica.jpg",
-        description: "Il primo Vendicatore"
-    },
-    {
-        name: "Wolverine",
-        image: "images/heroes/wolverine.jpg",
-        description: "Il mutante dagli artigli di adamantio"
-    },
-    {
-        name: "Deadpool",
-        image: "images/heroes/deadpool.jpg",
-        description: "Il mercenario chiacchierone"
-    }
-];
+// Variabili globali
+let allHeroes = []; // Tutti gli eroi disponibili dall'API Marvel
+let userCards = []; // Carte dell'utente
+let currentPage = 1;
+const cardsPerPage = 12;
+let currentTab = 'collected';
 
-// Funzione per creare una card per un eroe
-function createHeroCard(hero, isDuplicate = false, duplicateCount = 0) {
-    return `
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform transition-transform hover:scale-105">
-            <div class="relative aspect-[2/3]">
-                <img src="${hero.image}" alt="${hero.name}" class="w-full h-full object-cover">
-                ${isDuplicate ? `
-                    <div class="absolute top-2 right-2 bg-primary-600 text-white px-2 py-0.5 rounded-full text-xs font-semibold">
-                        ${duplicateCount} doppioni
-                    </div>
-                ` : ''}
-            </div>
-            <div class="p-4">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2 text-center">${hero.name}</h3>
-                <p class="text-xs text-gray-600 dark:text-gray-400 text-center">${hero.description}</p>
-            </div>
-        </div>
-    `;
+// Funzione per verificare l'autenticazione
+function checkAuth() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = 'login.html';
+        return false;
+    }
+    return true;
 }
 
-// Funzione per mostrare le carte possedute o mancanti
-function showTab(tab) {
-    const collectedTab = document.getElementById('collected-cards');
-    const duplicatesTab = document.getElementById('duplicates-cards');
-    const missingTab = document.getElementById('missing-cards');
-    const buttons = document.querySelectorAll('.tab-button');
-
-    // Nascondi tutte le sezioni
-    collectedTab.classList.add('hidden');
-    duplicatesTab.classList.add('hidden');
-    missingTab.classList.add('hidden');
-
-    // Aggiorna lo stile dei pulsanti
-    buttons.forEach(button => {
-        const buttonText = button.textContent.toLowerCase().trim();
-        const isActive = (
-            (tab === 'collected' && buttonText.includes('possedute')) ||
-            (tab === 'duplicates' && buttonText.includes('doppie')) ||
-            (tab === 'missing' && buttonText.includes('mancanti'))
-        );
-
-        if (isActive) {
-            button.classList.add('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
-            button.classList.remove('border-transparent', 'text-gray-500');
-        } else {
-            button.classList.remove('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
-            button.classList.add('border-transparent', 'text-gray-500');
+// Funzione per caricare i dati dell'utente
+async function loadUserData() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            console.error('Token non trovato');
+            window.location.href = 'login.html';
+            return;
         }
-    });
 
-    // Mostra la sezione appropriata
-    switch(tab) {
-        case 'collected':
-            collectedTab.classList.remove('hidden');
-            displayCollectedCards();
-            break;
-        case 'duplicates':
-            duplicatesTab.classList.remove('hidden');
-            displayDuplicateCards();
-            break;
-        case 'missing':
-            missingTab.classList.remove('hidden');
-            displayMissingCards();
-            break;
+        // Verifica se ci sono carte salvate in localStorage
+        const savedCards = localStorage.getItem('userCards');
+        if (savedCards) {
+            console.log('Carte trovate in localStorage');
+            userCards = JSON.parse(savedCards);
+        }
+
+        console.log('Recupero dati utente...');
+        const response = await fetch('http://localhost:3000/api/user/data', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success) {
+            userCards = data.cards;
+            // Aggiorna le carte in localStorage
+            localStorage.setItem('userCards', JSON.stringify(userCards));
+            
+            // Aggiorna l'interfaccia utente
+            document.getElementById('user-credits').textContent = data.credits;
+            updateAlbumProgress();
+            
+            // Carica gli eroi Marvel
+            await loadMarvelHeroes();
+        }
+    } catch (error) {
+        console.error('Errore nel caricamento dei dati:', error);
+        showError('Errore nel caricamento dei dati utente: ' + error.message);
     }
 }
 
-// Funzione per mostrare le carte possedute
-function displayCollectedCards() {
-    const container = document.getElementById('collected-cards');
-    const collectedCards = allHeroes.filter(hero => AppState.album.cards.has(hero.name));
-    
-    container.innerHTML = collectedCards.map(hero => 
-        createHeroCard(hero)
-    ).join('');
-}
+// Funzione per caricare gli eroi Marvel
+async function loadMarvelHeroes() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:3000/api/marvel/characters', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
 
-// Funzione per mostrare le carte doppie
-function displayDuplicateCards() {
-    const container = document.getElementById('duplicates-cards');
-    const duplicateCards = allHeroes.filter(hero => 
-        AppState.album.cards.has(hero.name) && 
-        AppState.album.duplicates[hero.name] > 0
-    );
-    
-    container.innerHTML = duplicateCards.map(hero => 
-        createHeroCard(hero, true, AppState.album.duplicates[hero.name])
-    ).join('');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-    // Mostra un messaggio se non ci sono doppioni
-    if (duplicateCards.length === 0) {
-        container.innerHTML = `
-            <div class="col-span-full text-center py-8">
-                <p class="text-gray-500 dark:text-gray-400">Non hai ancora carte doppie.</p>
-            </div>
-        `;
+        const data = await response.json();
+        if (data.success && data.data && data.data.results) {
+            allHeroes = data.data.results;
+            console.log('Eroi Marvel caricati:', allHeroes.length);
+            
+            // Salva gli eroi in localStorage per accesso rapido
+            localStorage.setItem('marvelHeroes', JSON.stringify(allHeroes));
+            
+            // Aggiorna la visualizzazione dell'album
+            updateAlbumView();
+            
+            // Aggiorna il progresso dell'album con il numero corretto di eroi
+            updateAlbumProgress();
+        } else {
+            throw new Error('Formato dati non valido');
+        }
+    } catch (error) {
+        console.error('Errore nel caricamento degli eroi Marvel:', error);
+        showError('Errore nel caricamento degli eroi: ' + error.message);
     }
 }
 
-// Funzione per mostrare le carte mancanti
-function displayMissingCards() {
-    const container = document.getElementById('missing-cards');
-    const missingCards = allHeroes.filter(hero => !AppState.album.cards.has(hero.name));
-    
-    container.innerHTML = missingCards.map(hero => 
-        createHeroCard(hero)
-    ).join('');
-}
-
-// Funzione per aggiornare le statistiche dell'album
-function updateAlbumStats() {
-    const uniqueCards = AppState.album.cards.size;
-    const totalCards = allHeroes.length;
+// Funzione per aggiornare il progresso dell'album
+function updateAlbumProgress() {
+    const uniqueCards = new Set(userCards.map(card => card.id)).size;
+    const totalCards = allHeroes.length || 50; // Utilizzo il numero effettivo di eroi o 50 come fallback
     const completionPercentage = Math.round((uniqueCards / totalCards) * 100);
-
-    // Aggiorna il conteggio delle carte uniche
-    document.getElementById('unique-cards').textContent = uniqueCards;
     
-    // Aggiorna il conteggio delle carte doppie
-    const duplicateCount = Object.values(AppState.album.duplicates)
-        .reduce((sum, count) => sum + count, 0);
-    document.getElementById('duplicate-cards').textContent = duplicateCount;
+    // Calcola il numero di carte doppie
+    const duplicateCount = userCards.reduce((total, card) => total + (card.count > 1 ? card.count - 1 : 0), 0);
     
-    // Aggiorna la percentuale di completamento
+    // Aggiorna l'interfaccia
     document.getElementById('completion-percentage').textContent = completionPercentage;
     document.getElementById('progress-bar').style.width = `${completionPercentage}%`;
-
-    // Aggiorna i crediti
-    const creditsElement = document.getElementById('user-credits');
-    if (creditsElement) {
-        creditsElement.textContent = AppState.user.credits;
+    document.getElementById('unique-cards').textContent = uniqueCards;
+    document.getElementById('duplicate-cards').textContent = duplicateCount;
+    
+    // Aggiorna anche il totale delle carte disponibili
+    const totalCardsElement = document.getElementById('total-available-cards');
+    if (totalCardsElement) {
+        totalCardsElement.textContent = totalCards;
     }
+}
+
+// Funzione per aggiornare la visualizzazione dell'album
+function updateAlbumView() {
+    // Resetta la paginazione
+    currentPage = 1;
+    
+    // Mostra la tab corrente
+    showTab(currentTab);
+}
+
+// Funzione per mostrare una tab specifica
+function showTab(tabName) {
+    currentTab = tabName;
+    
+    // Nascondi tutte le tab
+    document.getElementById('collected-cards').classList.add('hidden');
+    document.getElementById('duplicates-cards').classList.add('hidden');
+    document.getElementById('missing-cards').classList.add('hidden');
+    
+    // Mostra la tab selezionata
+    document.getElementById(`${tabName}-cards`).classList.remove('hidden');
+    
+    // Aggiorna lo stile dei pulsanti
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => {
+        button.classList.remove('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
+        button.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    });
+    
+    // Evidenzia il pulsante selezionato
+    const selectedButton = document.querySelector(`button[onclick="showTab('${tabName}')"]`);
+    if (selectedButton) {
+        selectedButton.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        selectedButton.classList.add('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
+    }
+    
+    // Aggiorna il contenuto della tab
+    updateTabContent(tabName);
+}
+
+// Funzione per aggiornare il contenuto di una tab
+function updateTabContent(tabName) {
+    const container = document.getElementById(`${tabName}-cards`);
+    if (!container) return;
+    
+    // Svuota il contenitore
+    container.innerHTML = '';
+    
+    // Prepara i dati in base alla tab
+    let cardsToShow = [];
+    
+    if (tabName === 'collected') {
+        // Carte possedute (uniche)
+        cardsToShow = userCards.filter(card => card.count > 0);
+    } else if (tabName === 'duplicates') {
+        // Carte doppie
+        cardsToShow = userCards.filter(card => card.count > 1);
+    } else if (tabName === 'missing') {
+        // Carte mancanti
+        const userCardIds = new Set(userCards.map(card => card.id));
+        cardsToShow = allHeroes
+            .filter(hero => !userCardIds.has(hero.id.toString()))
+            .map(hero => ({
+                id: hero.id.toString(),
+                name: hero.name,
+                thumbnail: `${hero.thumbnail.path}.${hero.thumbnail.extension}`,
+                count: 0
+            }));
+    }
+    
+    // Calcola il numero totale di pagine
+    const totalPages = Math.ceil(cardsToShow.length / cardsPerPage);
+    
+    // Limita la pagina corrente
+    if (currentPage > totalPages) {
+        currentPage = totalPages || 1;
+    }
+    
+    // Calcola l'indice di inizio e fine per la pagina corrente
+    const startIndex = (currentPage - 1) * cardsPerPage;
+    const endIndex = Math.min(startIndex + cardsPerPage, cardsToShow.length);
+    
+    // Ottieni le carte per la pagina corrente
+    const cardsForCurrentPage = cardsToShow.slice(startIndex, endIndex);
+    
+    // Se non ci sono carte da mostrare
+    if (cardsForCurrentPage.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <p class="text-gray-500 dark:text-gray-400">Nessuna carta da mostrare in questa sezione.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Crea le card per ogni carta
+    cardsForCurrentPage.forEach(card => {
+        const cardElement = document.createElement('div');
+        cardElement.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105';
+        
+        // Contenuto della card
+        cardElement.innerHTML = `
+            <img src="${card.thumbnail || 'images/card-placeholder.jpg'}" alt="${card.name}" class="w-full h-48 object-cover">
+            <div class="p-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${card.name}</h3>
+                ${card.count > 1 ? `<p class="text-sm text-gray-600 dark:text-gray-400">Quantità: ${card.count}</p>` : ''}
+                ${tabName === 'duplicates' ? `
+                    <button onclick="offerForTrade('${card.id}')" class="mt-2 px-3 py-1 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 transition-colors">
+                        Scambia
+                    </button>
+                ` : ''}
+            </div>
+        `;
+        
+        container.appendChild(cardElement);
+    });
+    
+    // Aggiungi la paginazione
+    if (totalPages > 1) {
+        const paginationElement = document.createElement('div');
+        paginationElement.className = 'col-span-full flex justify-center mt-6 space-x-2';
+        
+        // Pulsante pagina precedente
+        if (currentPage > 1) {
+            const prevButton = document.createElement('button');
+            prevButton.className = 'px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-md text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors';
+            prevButton.textContent = 'Precedente';
+            prevButton.onclick = () => {
+                currentPage--;
+                updateTabContent(tabName);
+            };
+            paginationElement.appendChild(prevButton);
+        }
+        
+        // Numeri di pagina
+        for (let i = 1; i <= totalPages; i++) {
+            if (
+                i === 1 || // Prima pagina
+                i === totalPages || // Ultima pagina
+                (i >= currentPage - 1 && i <= currentPage + 1) // Pagine intorno a quella corrente
+            ) {
+                const pageButton = document.createElement('button');
+                pageButton.className = `px-3 py-1 rounded-md text-sm transition-colors ${
+                    i === currentPage 
+                        ? 'bg-primary-600 text-white' 
+                        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`;
+                pageButton.textContent = i;
+                pageButton.onclick = () => {
+                    currentPage = i;
+                    updateTabContent(tabName);
+                };
+                paginationElement.appendChild(pageButton);
+            } else if (
+                (i === 2 && currentPage > 3) || 
+                (i === totalPages - 1 && currentPage < totalPages - 2)
+            ) {
+                // Aggiungi puntini di sospensione
+                const ellipsis = document.createElement('span');
+                ellipsis.className = 'px-3 py-1 text-gray-500 dark:text-gray-400';
+                ellipsis.textContent = '...';
+                paginationElement.appendChild(ellipsis);
+            }
+        }
+        
+        // Pulsante pagina successiva
+        if (currentPage < totalPages) {
+            const nextButton = document.createElement('button');
+            nextButton.className = 'px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-md text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors';
+            nextButton.textContent = 'Successiva';
+            nextButton.onclick = () => {
+                currentPage++;
+                updateTabContent(tabName);
+            };
+            paginationElement.appendChild(nextButton);
+        }
+        
+        container.appendChild(paginationElement);
+    }
+}
+
+// Funzione per offrire una carta per lo scambio
+function offerForTrade(cardId) {
+    window.location.href = `scambi.html?card=${cardId}`;
+}
+
+// Funzione per mostrare errori
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 3000);
 }
 
 // Inizializzazione
-document.addEventListener('DOMContentLoaded', () => {
-    // Modifica il layout della griglia per tutte le sezioni di carte
-    const cardGrids = ['collected-cards', 'duplicates-cards', 'missing-cards'];
-    cardGrids.forEach(gridId => {
-        const grid = document.getElementById(gridId);
-        // Mantieni grid-cols-3 ma aggiungi gap più piccolo
-        grid.className = grid.className.replace('gap-6', 'gap-4');
-    });
-
-    // Mostra le carte possedute inizialmente
-    showTab('collected');
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!checkAuth()) return;
     
-    // Aggiorna le statistiche
-    updateAlbumStats();
-
-    // Sottoscrivi agli aggiornamenti dell'album
-    AppState.subscribe('album', () => {
-        updateAlbumStats();
-        showTab('collected'); // Aggiorna la vista corrente
+    // Carica i dati dell'utente
+    await loadUserData();
+    
+    // Imposta gli event listener per i pulsanti delle tab
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const tabName = e.target.getAttribute('data-tab');
+            if (tabName) {
+                showTab(tabName);
+            }
+        });
     });
+    
+    // Mostra la tab "collected" di default
+    showTab('collected');
 }); 

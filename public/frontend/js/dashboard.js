@@ -45,6 +45,13 @@ async function loadUserData() {
             return;
         }
 
+        // Verifica se ci sono carte salvate in localStorage
+        const savedCards = localStorage.getItem('userCards');
+        if (savedCards) {
+            console.log('Carte trovate in localStorage');
+            userCards = JSON.parse(savedCards);
+        }
+
         console.log('Recupero dati utente...');
         const response = await fetch('http://localhost:3000/api/user/data', {
             method: 'GET',
@@ -61,6 +68,8 @@ async function loadUserData() {
         if (data.success) {
             userCredits = data.credits;
             userCards = data.cards;
+            // Aggiorna le carte in localStorage
+            localStorage.setItem('userCards', JSON.stringify(userCards));
             updateUI();
 
             console.log('Recupero dati profilo...');
@@ -181,7 +190,7 @@ async function proposeTrade(offeredCardId, wantedCardId) {
 // Funzione per accettare uno scambio
 async function acceptTrade(tradeId) {
     try {
-        const response = await fetch(`http://localhost:3000/api/trades/accept/${tradeId}`, {
+        const response = await fetch(`/api/trades/accept/${tradeId}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -313,6 +322,68 @@ function showError(message) {
     errorDiv.textContent = message;
     document.body.appendChild(errorDiv);
     setTimeout(() => errorDiv.remove(), 3000);
+}
+
+// Funzione per aggiornare le statistiche della dashboard
+function updateDashboardStats() {
+    // Ottieni i dati delle carte dell'utente
+    const userCardsData = JSON.parse(localStorage.getItem('userCards') || '[]');
+    
+    // Calcola il numero di carte uniche
+    const uniqueCards = new Set(userCardsData.map(card => card.id)).size;
+    
+    // Calcola il numero di carte doppie
+    const duplicateCards = userCardsData.reduce((total, card) => total + (card.count > 1 ? card.count - 1 : 0), 0);
+    
+    // Calcola il numero totale di carte
+    const totalCards = userCardsData.reduce((total, card) => total + card.count, 0);
+    
+    // Ottieni il numero totale di eroi disponibili
+    // Prova a ottenere il numero di eroi dall'API Marvel
+    let totalHeroes = 0;
+    const marvelHeroes = localStorage.getItem('marvelHeroes');
+    if (marvelHeroes) {
+        try {
+            totalHeroes = JSON.parse(marvelHeroes).length;
+        } catch (e) {
+            console.error('Errore nel parsing degli eroi Marvel:', e);
+            totalHeroes = 50; // Fallback a 50 se c'è un errore
+        }
+    } else {
+        totalHeroes = 50; // Fallback a 50 se non ci sono dati
+    }
+    
+    // Aggiorna i contatori base
+    document.getElementById('user-credits').textContent = AppState.user.credits;
+    document.getElementById('total-packs').textContent = AppState.user.totalPacks;
+    document.getElementById('total-cards').textContent = totalCards;
+    document.getElementById('duplicate-cards').textContent = duplicateCards;
+    document.getElementById('active-trades').textContent = AppState.user.activeTrades;
+
+    // Aggiorna il progresso dell'album
+    const progressPercentage = Math.round((uniqueCards / totalHeroes) * 100);
+    
+    // Aggiorna la barra di progresso
+    document.getElementById('progress-percentage').textContent = `${progressPercentage}%`;
+    document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+    
+    // Calcola e aggiorna le figurine mancanti
+    const missingCards = totalHeroes - uniqueCards;
+    document.getElementById('missing-cards').textContent = missingCards;
+    
+    // Aggiorna il totale delle figurine doppie
+    document.getElementById('duplicate-total').textContent = duplicateCards;
+
+    // Aggiorna l'ultima attività di apertura pacchetto
+    if (AppState.lastPackOpening) {
+        document.getElementById('last-pack-opening').classList.remove('hidden');
+        document.getElementById('no-activity').classList.add('hidden');
+        document.getElementById('last-pack-time').textContent = timeAgo(AppState.lastPackOpening.timestamp);
+        document.getElementById('last-pack-cards').textContent = `Trovati ${AppState.lastPackOpening.cards.length} nuovi super eroi`;
+    } else {
+        document.getElementById('last-pack-opening').classList.add('hidden');
+        document.getElementById('no-activity').classList.remove('hidden');
+    }
 }
 
 // Inizializzazione

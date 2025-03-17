@@ -61,6 +61,7 @@ function loginUser(event) {
         body: JSON.stringify(data)
     })
     .then(response => {
+        console.log(response);
         console.log('Status:', response.status);
         console.log('Headers:', Object.fromEntries(response.headers.entries()));
         return response.json().catch(e => {

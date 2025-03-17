@@ -1,3 +1,9 @@
+const PUBLIC_KEY="af7b1b70227c7699019dc5b3310f327d";
+const PRIVATE_KEY="1389efde3a9d301441b69d6a53c1ae95e8b63520"; 
+const timestamp = new Date().getTime();
+const hash = CryptoJS.MD5(timestamp + PRIVATE_KEY + PUBLIC_KEY).toString();
+const url = `https://gateway.marvel.com/v1/public/characters?ts=${timestamp}&apikey=${PUBLIC_KEY}&hash=${hash}&limit=100&orderBy=name`;
+let allHeroes = []; 
 // Simulazione del database dei pacchetti
 let userPacks = [
     {
@@ -18,11 +24,22 @@ let userPacks = [
     }
 ];
 
-// Array delle carte disponibili
-const allHeroes = [
-    "Spider-Man", "Iron Man", "Thor", "Black Widow", "Hulk",
-    "Doctor Strange", "Black Panther", "Captain America", "Wolverine", "Deadpool"
-];
+fetch(url)
+    .then(response => {
+        if (!response.ok) throw new Error('Errore nella risposta del server');
+        return response.json();
+    })
+.then(data => {
+        allHeroes = data.data.results.map(hero => ({
+            id: hero.id,
+            name: hero.name,
+            thumbnail: `${hero.thumbnail.path}.${hero.thumbnail.extension}`
+        }));
+        console.log("allhero",allHeroes);
+    })
+    .catch(error => {
+        console.error('Errore nel caricamento dei dati:', error);
+    });
 
 // Funzione per creare la card di un pacchetto
 function createPackCard(pack) {
@@ -87,22 +104,122 @@ function viewPack(packId) {
     const modal = document.getElementById('pack-opening-modal');
     const cardsContainer = document.getElementById('cards-container');
     
-    cardsContainer.innerHTML = pack.cards.map(card => `
+    cardsContainer.innerHTML = pack.cards.map(cardName => {
+        // Trova l'eroe corrispondente per ottenere l'immagine
+        const hero = allHeroes.find(h => h.name === cardName);
+        const heroImage = hero ? hero.thumbnail : '';
+        
+        return `
         <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
-            <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${card}</h4>
+            ${heroImage ? `<img src="${heroImage}" alt="${cardName}" class="w-full h-48 object-cover mb-3 rounded">` : ''}
+            <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${cardName}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                ${AppState.album.duplicates[card] ? `Doppioni: ${AppState.album.duplicates[card]}` : 'Nuova!'}
+                ${AppState.album.duplicates[cardName] ? `Doppioni: ${AppState.album.duplicates[cardName]}` : 'Nuova!'}
             </p>
         </div>
-    `).join('');
+        `;
+    }).join('');
 
     modal.classList.remove('hidden');
 }
 
 // Funzione per aprire un pacchetto esistente
 function openPack(packId) {
-    AppState.openPack(packId);
-    viewPack(packId);
+    const pack = AppState.packs.find(p => p.id === packId);
+    if (!pack || pack.opened) return;
+    
+    // Ottieni il token di autenticazione
+    const token = localStorage.getItem('token');
+    if (!token) {
+        console.error('Token di autenticazione non trovato');
+        alert('Devi effettuare il login per aprire un pacchetto');
+        return;
+    }
+    
+    // Segna il pacchetto come aperto
+    pack.opened = true;
+    pack.openedDate = new Date().toISOString().split('T')[0];
+    
+    // Prepara le carte da salvare nel database
+    const cardsToSave = [];
+    
+    pack.cards.forEach(cardName => {
+        const hero = allHeroes.find(h => h.name === cardName);
+        if (hero) {
+            cardsToSave.push({
+                id: hero.id.toString(),
+                name: cardName,
+                thumbnail: hero.thumbnail
+            });
+        }
+        
+        // Aggiorna l'album locale
+        AppState.album.cards.add(cardName);
+        if (!AppState.album.duplicates[cardName]) {
+            AppState.album.duplicates[cardName] = 0;
+        }
+    });
+    
+    // Mostra un indicatore di caricamento
+    const modal = document.getElementById('pack-opening-modal');
+    const cardsContainer = document.getElementById('cards-container');
+    cardsContainer.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Apertura pacchetto in corso...</p></div>';
+    modal.classList.remove('hidden');
+    
+    // Salva le carte nel database MongoDB
+    fetch('/api/cards/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ cards: cardsToSave })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Errore durante il salvataggio delle carte nel database');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Carte salvate nel database con successo:', data);
+        
+        // Aggiorna le statistiche dell'utente
+        AppState.user.totalCards = data.totalCards;
+        
+        // Notifica che le carte dell'utente sono state aggiornate
+        AppState.notify('user');
+        AppState.notify('album');
+        AppState.notify('packs');
+        
+        // Mostra le carte nel modal
+        cardsContainer.innerHTML = pack.cards.map(cardName => {
+            // Trova l'eroe corrispondente per ottenere l'immagine
+            const hero = allHeroes.find(h => h.name === cardName);
+            const heroImage = hero ? hero.thumbnail : '';
+            
+            return `
+            <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
+                ${heroImage ? `<img src="${heroImage}" alt="${cardName}" class="w-full h-48 object-cover mb-3 rounded">` : ''}
+                <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${cardName}</h4>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    ${AppState.album.duplicates[cardName] ? `Doppioni: ${AppState.album.duplicates[cardName]}` : 'Nuova!'}
+                </p>
+            </div>
+            `;
+        }).join('');
+    })
+    .catch(error => {
+        console.error('Errore durante l\'apertura del pacchetto:', error);
+        alert('Errore durante l\'apertura del pacchetto: ' + error.message);
+        
+        // Ripristina lo stato del pacchetto
+        pack.opened = false;
+        pack.openedDate = null;
+        
+        // Chiudi il modal
+        modal.classList.add('hidden');
+    });
 }
 
 // Funzione per generare carte casuali
@@ -111,17 +228,17 @@ function generateRandomCards(count) {
     for (let i = 0; i < count; i++) {
         const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)];
         cards.push({
-            name: randomHero,
-            isNew: !AppState.album.cards.has(randomHero)
+            name: randomHero.name,
+            isNew: !AppState.album.cards.has(randomHero.name)
         });
         
         // Aggiorna l'album
-        AppState.album.cards.add(randomHero);
-        if (!AppState.album.duplicates[randomHero]) {
-            AppState.album.duplicates[randomHero] = 0;
+        AppState.album.cards.add(randomHero.name);
+        if (!AppState.album.duplicates[randomHero.name]) {
+            AppState.album.duplicates[randomHero.name] = 0;
         }
         if (!cards[cards.length - 1].isNew) {
-            AppState.album.duplicates[randomHero]++;
+            AppState.album.duplicates[randomHero.name]++;
         }
     }
     AppState.notify('album');
@@ -133,14 +250,21 @@ function showPackOpeningModal(cards) {
     const modal = document.getElementById('pack-opening-modal');
     const cardsContainer = document.getElementById('cards-container');
     
-    cardsContainer.innerHTML = cards.map(card => `
+    cardsContainer.innerHTML = cards.map(card => {
+        // Trova l'eroe corrispondente per ottenere l'immagine
+        const hero = allHeroes.find(h => h.name === card.name);
+        const heroImage = hero ? hero.thumbnail : '';
+        
+        return `
         <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
+            ${heroImage ? `<img src="${heroImage}" alt="${card.name}" class="w-full h-48 object-cover mb-3 rounded">` : ''}
             <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${card.name}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400">
                 ${card.isNew ? 'Nuova!' : `Doppione (${AppState.album.duplicates[card.name]})`}
             </p>
         </div>
-    `).join('');
+        `;
+    }).join('');
 
     modal.classList.remove('hidden');
 }
@@ -153,45 +277,99 @@ function openNewPack() {
         return;
     }
 
-    // Sottrai un credito
-    AppState.user.credits--;
-
-    // Genera 5 carte casuali
-    const cards = generateRandomCards(5);
-
-    // Aggiorna le statistiche
-    AppState.user.totalPacks = (AppState.user.totalPacks || 0) + 1;
-    AppState.user.totalCards = (AppState.user.totalCards || 0) + 5;
-
-    // Salva il timestamp dell'apertura del pacchetto
-    AppState.lastPackOpening = {
-        timestamp: new Date().toISOString(),
-        cards: cards.map(card => card.name)
-    };
-
-    // Crea un nuovo pacchetto e aggiungilo alla lista
-    const newPack = {
-        id: Date.now(),
-        type: "Standard",
-        cards: cards.map(card => card.name),
-        opened: true,
-        purchaseDate: new Date().toISOString().split('T')[0],
-        openedDate: new Date().toISOString().split('T')[0],
-        cost: 1
-    };
-
-    // Aggiungi il pacchetto alla lista
-    if (!AppState.packs) {
-        AppState.packs = [];
+    // Ottieni il token di autenticazione
+    const token = localStorage.getItem('token');
+    if (!token) {
+        console.error('Token di autenticazione non trovato');
+        alert('Devi effettuare il login per aprire un pacchetto');
+        return;
     }
-    AppState.packs.unshift(newPack);
 
-    // Aggiorna l'interfaccia
-    updateAllStats();
-    displayPacks(AppState.packs);
+    // Mostra un indicatore di caricamento
+    const container = document.getElementById('packs-container');
+    container.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Apertura pacchetto in corso...</p></div>';
 
-    // Mostra le carte nel modal
-    showPackOpeningModal(cards);
+    // Invia la richiesta al server per acquistare un pacchetto
+    fetch('http://localhost:3000/api/cards/buy-pack', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Errore durante l\'acquisto del pacchetto');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.message || 'Errore durante l\'acquisto del pacchetto');
+        }
+
+        // Aggiorna i crediti dell'utente
+        AppState.user.credits = data.newCredits;
+
+        // Aggiorna le statistiche
+        AppState.user.totalPacks = (AppState.user.totalPacks || 0) + 1;
+        AppState.user.totalCards = data.totalCards;
+
+        // Crea un nuovo pacchetto con le carte ricevute dal server
+        const newPack = {
+            id: Date.now(),
+            type: "Standard",
+            cards: data.newCards.map(card => card.name),
+            opened: true,
+            purchaseDate: new Date().toISOString().split('T')[0],
+            openedDate: new Date().toISOString().split('T')[0],
+            cost: 1
+        };
+
+        // Aggiungi il pacchetto alla lista
+        if (!AppState.packs) {
+            AppState.packs = [];
+        }
+        AppState.packs.unshift(newPack);
+
+        // Aggiorna l'album con le nuove carte
+        data.newCards.forEach(card => {
+            AppState.album.cards.add(card.name);
+        });
+
+        // Salva il timestamp dell'apertura del pacchetto
+        AppState.lastPackOpening = {
+            timestamp: new Date().toISOString(),
+            cards: data.newCards.map(card => card.name)
+        };
+
+        // Aggiorna l'interfaccia
+        updateAllStats();
+        displayPacks(AppState.packs);
+
+        // Prepara le carte per il modal
+        const cards = data.newCards.map(card => ({
+            name: card.name,
+            isNew: true, // Assumiamo che siano tutte nuove, il server gestisce i doppioni
+            thumbnail: card.thumbnail
+        }));
+
+        // Mostra le carte nel modal
+        showPackOpeningModal(cards);
+
+        // Notifica che le carte dell'utente sono state aggiornate
+        AppState.notify('user');
+        AppState.notify('album');
+        
+        console.log("Pacchetto aperto con successo:", data);
+    })
+    .catch(error => {
+        console.error('Errore durante l\'apertura del pacchetto:', error);
+        alert('Errore durante l\'apertura del pacchetto: ' + error.message);
+        
+        // Ripristina l'interfaccia
+        displayPacks(AppState.packs);
+    });
 }
 
 // Funzione per chiudere il modal
@@ -247,8 +425,14 @@ document.addEventListener('DOMContentLoaded', () => {
             credits: 50,
             totalPacks: 0,
             totalCards: 0,
-            duplicateCards: 0
+            duplicateCards: 0,
+            cards: [] // Inizializza l'array delle carte dell'utente
         };
+    }
+    
+    // Assicurati che l'attributo cards esista
+    if (!AppState.user.cards) {
+        AppState.user.cards = [];
     }
 
     // Aggiorna i contatori

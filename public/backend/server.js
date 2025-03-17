@@ -16,7 +16,7 @@ import { getAuth } from 'firebase/auth';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:Lampo411@marvel.vtlvt.mongodb.net/?retryWrites=true&w=majority&appName=marvel";
 const PUBLIC_KEY= process.env.PUBLIC_KEY || 'https://marvel.com';
 const PRIVATE_KEY= process.env.PRIVATE_KEY || 'https://marvel.com';
@@ -76,7 +76,7 @@ const testStorageConnection = async () => {
 testStorageConnection();
 
 app.use(cors({
-    origin: ['http://localhost:5500', 'http://127.0.0.1:5500'],  // Permette richieste da entrambi gli origin
+    origin: '*',  // Permette richieste da qualsiasi origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -84,7 +84,21 @@ app.use(cors({
 
 // Middleware
 app.use(express.json());
-
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log('Body:', JSON.stringify(req.body, null, 2));
+    }
+    
+    if (req.query && Object.keys(req.query).length > 0) {
+      console.log('Query params:', JSON.stringify(req.query, null, 2));
+    }
+    
+    console.log('-----------------------------------');
+    next();
+  });
 // Obtain the current directory name (__dirname equivalent in ES6)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -270,6 +284,7 @@ app.post('/register', async (req, res) => {
 // Login
 app.post('/login', async (req, res) => {
     try {
+
         const { email, password } = req.body;
         console.log('Tentativo di login per email:', email);
         console.log('Password ricevuta:', password ? 'Presente' : 'Mancante');
@@ -376,59 +391,93 @@ app.post('/api/credits/buy', authenticateToken, async (req, res) => {
 // Acquisto pacchetto di figurine
 app.post('/api/cards/buy-pack', authenticateToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
-        
-        if (user.credits < 1) {
-            return res.status(400).json({ success: false, message: 'Crediti insufficienti' });
-        }
-        
-        // Genera timestamp e hash per Marvel API
-        const ts = new Date().getTime();
-        const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
-        
-        // Ottieni 5 eroi casuali dalla Marvel API
-        const response = await axios.get(`https://gateway.marvel.com/v1/public/characters`, {
-            params: {
-                ts,
-                apikey: MARVEL_PUBLIC_KEY,
-                hash,
-                limit: 100
-            }
-        });
-        
-        const allHeroes = response.data.data.results;
-        const newCards = [];
-        
-        // Seleziona 5 eroi casuali
-        for (let i = 0; i < 5; i++) {
-            const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)];
-            const card = {
-                id: randomHero.id.toString(),
-                name: randomHero.name,
-                thumbnail: `${randomHero.thumbnail.path}.${randomHero.thumbnail.extension}`
-            };
+        // Usa una sessione di MongoDB per garantire l'atomicità della transazione
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        try {
+            const user = await User.findById(req.user.id).session(session);
             
-            // Aggiungi o aggiorna la carta nell'album dell'utente
-            const existingCard = user.cards.find(c => c.id === card.id);
-            if (existingCard) {
-                existingCard.count++;
-            } else {
-                user.cards.push({ ...card, count: 1 });
+            if (!user) {
+                throw new Error('Utente non trovato');
             }
             
-            newCards.push(card);
+            if (user.credits < 1) {
+                throw new Error('Crediti insufficienti');
+            }
+            
+            // Genera timestamp e hash per Marvel API
+            const ts = new Date().getTime();
+            const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
+            
+            // Ottieni eroi dalla Marvel API
+            const response = await axios.get(`https://gateway.marvel.com/v1/public/characters`, {
+                params: {
+                    ts,
+                    apikey: MARVEL_PUBLIC_KEY,
+                    hash,
+                    limit: 100
+                }
+            });
+            
+            const allHeroes = response.data.data.results;
+            const newCards = [];
+            
+            // Seleziona 5 eroi casuali
+            for (let i = 0; i < 5; i++) {
+                const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)];
+                const card = {
+                    id: randomHero.id.toString(),
+                    name: randomHero.name,
+                    thumbnail: `${randomHero.thumbnail.path}.${randomHero.thumbnail.extension}`
+                };
+                
+                // Aggiungi o aggiorna la carta nell'album dell'utente
+                const existingCardIndex = user.cards.findIndex(c => c.id === card.id);
+                if (existingCardIndex !== -1) {
+                    user.cards[existingCardIndex].count++;
+                    console.log(`Carta esistente aggiornata: ${card.name}, nuovo conteggio: ${user.cards[existingCardIndex].count}`);
+                } else {
+                    user.cards.push({ ...card, count: 1 });
+                    console.log(`Nuova carta aggiunta: ${card.name}`);
+                }
+                
+                newCards.push(card);
+            }
+            
+            // Sottrai un credito
+            user.credits--;
+            console.log(`Crediti rimanenti: ${user.credits}`);
+
+            // Salva le modifiche nel database
+            const savedUser = await user.save({ session });
+            console.log('Modifiche salvate nel database con successo');
+
+            // Commit della transazione
+            await session.commitTransaction();
+            
+            res.json({
+                success: true,
+                newCards,
+                newCredits: savedUser.credits,
+                totalCards: savedUser.cards.length
+            });
+
+        } catch (error) {
+            // In caso di errore, annulla la transazione
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            // Termina la sessione
+            session.endSession();
         }
         
-        user.credits--;
-        await user.save();
-        
-        res.json({
-            success: true,
-            newCards,
-            newCredits: user.credits
-        });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        console.error('Errore durante l\'acquisto del pacchetto:', error);
+        res.status(400).json({ 
+            success: false, 
+            message: error.message || 'Errore durante l\'acquisto del pacchetto'
+        });
     }
 });
 
@@ -461,6 +510,84 @@ app.post('/api/trades/propose', authenticateToken, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+// Endpoint per salvare le carte nel database
+app.post('/api/cards/save', authenticateToken, async (req, res) => {
+    try {
+        const { cards } = req.body;
+        
+        if (!cards || !Array.isArray(cards) || cards.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Nessuna carta da salvare' 
+            });
+        }
+        
+        // Usa una sessione di MongoDB per garantire l'atomicità della transazione
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        
+        try {
+            const user = await User.findById(req.user.id).session(session);
+            
+            if (!user) {
+                throw new Error('Utente non trovato');
+            }
+            
+            // Aggiorna le carte dell'utente
+            for (const card of cards) {
+                // Verifica che la carta abbia tutti i campi necessari
+                if (!card.id || !card.name) {
+                    console.warn('Carta incompleta:', card);
+                    continue;
+                }
+                
+                // Aggiungi o aggiorna la carta nell'album dell'utente
+                const existingCardIndex = user.cards.findIndex(c => c.id === card.id);
+                if (existingCardIndex !== -1) {
+                    user.cards[existingCardIndex].count++;
+                    console.log(`Carta esistente aggiornata: ${card.name}, nuovo conteggio: ${user.cards[existingCardIndex].count}`);
+                } else {
+                    user.cards.push({ 
+                        id: card.id,
+                        name: card.name,
+                        thumbnail: card.thumbnail || '',
+                        count: 1 
+                    });
+                    console.log(`Nuova carta aggiunta: ${card.name}`);
+                }
+            }
+            
+            // Salva le modifiche nel database
+            const savedUser = await user.save({ session });
+            console.log('Carte salvate nel database con successo');
+            
+            // Commit della transazione
+            await session.commitTransaction();
+            
+            res.json({
+                success: true,
+                message: 'Carte salvate con successo',
+                totalCards: savedUser.cards.length
+            });
+            
+        } catch (error) {
+            // In caso di errore, annulla la transazione
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            // Termina la sessione
+            session.endSession();
+        }
+        
+    } catch (error) {
+        console.error('Errore durante il salvataggio delle carte:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message || 'Errore durante il salvataggio delle carte'
+        });
     }
 });
 
@@ -561,6 +688,34 @@ app.get('/api/marvel', async (req, res) => {
         });
         
         res.json(response.data);
+    } catch (error) {
+        console.error('Errore nella chiamata all\'API Marvel:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Errore nella chiamata all\'API Marvel' 
+        });
+    }
+});
+
+// Endpoint per ottenere i personaggi Marvel con autenticazione
+app.get('/api/marvel/characters', authenticateToken, async (req, res) => {
+    try {
+        const ts = new Date().getTime();
+        const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
+        
+        const response = await axios.get('https://gateway.marvel.com/v1/public/characters', {
+            params: {
+                ts,
+                apikey: MARVEL_PUBLIC_KEY,
+                hash,
+                limit: 50 // Limitiamo a 50 personaggi per l'album
+            }
+        });
+        
+        res.json({
+            success: true,
+            data: response.data.data
+        });
     } catch (error) {
         console.error('Errore nella chiamata all\'API Marvel:', error);
         res.status(500).json({ 

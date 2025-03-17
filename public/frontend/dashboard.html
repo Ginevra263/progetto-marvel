@@ -32,6 +32,7 @@
     <!-- Firebase Configuration -->
     <script src="js/firebase-config.js" type="module"></script>
     <script src="js/dashboard.js" type="module"></script>
+    <script src="js/cards.js"></script>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
     <!-- Navbar -->
@@ -285,6 +286,25 @@
                                 <p id="duplicate-total" class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">0</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aggiungo una sezione per le carte dell'utente -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Le tue carte</h2>
+                        <a href="album.html" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium">
+                            Visualizza Album Completo →
+                        </a>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">Hai <span id="cards-count">0</span> carte nella tua collezione.</p>
+                    
+                    <div id="user-cards-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        <!-- Le carte verranno inserite qui dinamicamente -->
                     </div>
                 </div>
             </div>
