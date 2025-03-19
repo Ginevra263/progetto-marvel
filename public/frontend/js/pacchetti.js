@@ -167,7 +167,7 @@ function openPack(packId) {
     modal.classList.remove('hidden');
     
     // Salva le carte nel database MongoDB
-    fetch('/api/cards/save', {
+    fetch('http://localhost:3000/api/cards/save', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -298,11 +298,73 @@ async function openNewPack() {
             return;
         }
 
-        // Procedi con l'apertura del pacchetto
-        // ... resto del codice per l'apertura del pacchetto ...
+        // Invia la richiesta per aprire un nuovo pacchetto
+        const buyResponse = await fetch('http://localhost:3000/api/cards/buy-pack', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!buyResponse.ok) {
+            throw new Error('Errore durante l\'acquisto del pacchetto');
+        }
+
+        const data = await buyResponse.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Errore durante l\'acquisto del pacchetto');
+        }
+
+        // Crea un nuovo pacchetto con le carte ricevute dal server
+        const newPack = {
+            id: Date.now(),
+            type: "Standard",
+            cards: data.newCards.map(card => card.name),
+            opened: true,
+            purchaseDate: new Date().toISOString().split('T')[0],
+            openedDate: new Date().toISOString().split('T')[0],
+            cost: 1
+        };
+
+        // Aggiorna l'AppState
+        if (!AppState.packs) {
+            AppState.packs = [];
+        }
+        AppState.packs.unshift(newPack);
+
+        // Aggiorna l'album con le nuove carte
+        data.newCards.forEach(card => {
+            if (AppState.album && AppState.album.cards) {
+                AppState.album.cards.add(card.name);
+            }
+        });
+
+        // Aggiorna le statistiche dell'utente
+        AppState.user.credits = data.credits;
+        AppState.user.totalCards = data.totalCards;
+        AppState.user.totalPacks++;
+
+        // Notifica gli aggiornamenti
+        if (AppState.notify) {
+            AppState.notify('user');
+            AppState.notify('album');
+            AppState.notify('packs');
+        }
+
+        // Mostra le carte nel modal
+        const cards = data.newCards.map(card => ({
+            name: card.name,
+            isNew: true,
+            thumbnail: card.thumbnail
+        }));
+
+        showPackOpeningModal(cards);
+
     } catch (error) {
         console.error('Errore:', error);
-        alert('Si è verificato un errore durante l\'apertura del pacchetto');
+        alert('Si è verificato un errore durante l\'apertura del pacchetto: ' + error.message);
     }
 }
 

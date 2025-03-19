@@ -396,7 +396,7 @@ app.post('/api/cards/buy-pack', authenticateToken, async (req, res) => {
         session.startTransaction();
 
         try {
-            const user = await User.findById(req.user.id).session(session);
+            const user = await User.findById(req.user._id).session(session);
             
             if (!user) {
                 throw new Error('Utente non trovato');
@@ -448,34 +448,30 @@ app.post('/api/cards/buy-pack', authenticateToken, async (req, res) => {
             // Sottrai un credito
             user.credits--;
             console.log(`Crediti rimanenti: ${user.credits}`);
-
-            // Salva le modifiche nel database
-            const savedUser = await user.save({ session });
-            console.log('Modifiche salvate nel database con successo');
-
-            // Commit della transazione
+            
+            // Salva le modifiche
+            await user.save({ session });
             await session.commitTransaction();
             
+            // Invia la risposta
             res.json({
                 success: true,
+                message: 'Pacchetto acquistato con successo',
                 newCards,
-                newCredits: savedUser.credits,
-                totalCards: savedUser.cards.length
+                credits: user.credits,
+                totalCards: user.cards.reduce((acc, card) => acc + card.count, 0)
             });
-
+            
         } catch (error) {
-            // In caso di errore, annulla la transazione
             await session.abortTransaction();
             throw error;
         } finally {
-            // Termina la sessione
             session.endSession();
         }
-        
     } catch (error) {
         console.error('Errore durante l\'acquisto del pacchetto:', error);
-        res.status(400).json({ 
-            success: false, 
+        res.status(400).json({
+            success: false,
             message: error.message || 'Errore durante l\'acquisto del pacchetto'
         });
     }
