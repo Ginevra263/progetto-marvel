@@ -1,5 +1,4 @@
 // Gestione dei crediti e delle figurine
-let userCredits = 0;
 let userCards = [];
 let availableTrades = [];
 
@@ -66,7 +65,8 @@ async function loadUserData() {
 
         const data = await response.json();
         if (data.success) {
-            userCredits = data.credits;
+            // Aggiorna i crediti nell'AppState
+            AppState.updateCredits(data.credits);
             userCards = data.cards;
             // Aggiorna le carte in localStorage
             localStorage.setItem('userCards', JSON.stringify(userCards));
@@ -110,8 +110,11 @@ async function buyCredits(amount) {
         });
         const data = await response.json();
         if (data.success) {
-            userCredits = data.newCredits;
-            updateUI();
+            // Aggiorna i crediti nell'AppState
+            AppState.updateCredits(data.newCredits);
+            // Registra la transazione
+            AppState.addCreditTransaction(amount, `Acquisto ${amount} crediti`);
+            
             alert(`Hai acquistato ${amount} crediti con successo!`);
         }
     } catch (error) {
@@ -121,28 +124,83 @@ async function buyCredits(amount) {
 
 // Funzione per acquistare un pacchetto di figurine
 async function buyCardPack() {
-    if (userCredits < 1) {
+    if (AppState.user.credits < 1) {
         alert('Crediti insufficienti!');
         return;
     }
 
-    try {
-        const response = await fetch('http://localhost:3000/api/cards/buy-pack', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+    // Mostra il dialog di conferma
+    const confirmDialog = document.createElement('div');
+    confirmDialog.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+    confirmDialog.innerHTML = `
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Conferma Apertura Pacchetto</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Il pacchetto costa <span class="text-primary-600 dark:text-primary-400 font-bold">1 credito</span>
+                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        Crediti disponibili: <span class="text-primary-600 dark:text-primary-400 font-bold">${AppState.user.credits}</span>
+                    </p>
+                </div>
+                <div class="flex justify-center space-x-4 mt-6">
+                    <button id="confirm-pack-btn" class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
+                        Apri Pacchetto
+                    </button>
+                    <button id="cancel-pack-btn" class="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
+                        Annulla
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(confirmDialog);
+
+    // Gestisci la conferma
+    const confirmBtn = document.getElementById('confirm-pack-btn');
+    const cancelBtn = document.getElementById('cancel-pack-btn');
+
+    confirmBtn.addEventListener('click', async () => {
+        confirmDialog.remove();
+        try {
+            const response = await fetch('http://localhost:3000/api/cards/buy-pack', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                // Usa AppState per gestire i crediti e registrare l'apertura del pacchetto
+                AppState.recordPackOpening(data.newCards);
+                
+                // Aggiorna le carte dell'utente
+                userCards = [...userCards, ...data.newCards];
+                localStorage.setItem('userCards', JSON.stringify(userCards));
+                
+                // Aggiorna l'UI
+                updateUI();
+                updateDashboardStats();
+                
+                // Mostra le nuove carte
+                showNewCards(data.newCards);
             }
-        });
-        const data = await response.json();
-        if (data.success) {
-            userCredits = data.newCredits;
-            userCards = [...userCards, ...data.newCards];
-            updateUI();
-            showNewCards(data.newCards);
+        } catch (error) {
+            alert('Errore nell\'acquisto del pacchetto');
         }
-    } catch (error) {
-        alert('Errore nell\'acquisto del pacchetto');
-    }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+        confirmDialog.remove();
+    });
+
+    // Chiudi il dialog se si clicca fuori
+    confirmDialog.addEventListener('click', (e) => {
+        if (e.target === confirmDialog) {
+            confirmDialog.remove();
+        }
+    });
 }
 
 // Funzione per visualizzare i dettagli di un supereroe
@@ -264,12 +322,13 @@ function showNewCards(newCards) {
 
 // Funzione per aggiornare l'interfaccia utente
 function updateUI() {
-    const creditsElement = document.getElementById('userCredits');
+    const creditsElements = document.querySelectorAll('[id="user-credits"]');
     const albumContainer = document.getElementById('albumContainer');
     
-    if (creditsElement) {
-        creditsElement.textContent = userCredits;
-    }
+    // Aggiorna tutti gli elementi che mostrano i crediti
+    creditsElements.forEach(element => {
+        element.textContent = AppState.user.credits;
+    });
     
     if (albumContainer) {
         albumContainer.innerHTML = userCards.map(card => `
@@ -354,7 +413,11 @@ function updateDashboardStats() {
     }
     
     // Aggiorna i contatori base
-    document.getElementById('user-credits').textContent = AppState.user.credits;
+    const creditsElements = document.querySelectorAll('[id="user-credits"]');
+    creditsElements.forEach(element => {
+        element.textContent = AppState.user.credits;
+    });
+    
     document.getElementById('total-packs').textContent = AppState.user.totalPacks;
     document.getElementById('total-cards').textContent = totalCards;
     document.getElementById('duplicate-cards').textContent = duplicateCards;
@@ -375,14 +438,91 @@ function updateDashboardStats() {
     document.getElementById('duplicate-total').textContent = duplicateCards;
 
     // Aggiorna l'ultima attività di apertura pacchetto
-    if (AppState.lastPackOpening) {
-        document.getElementById('last-pack-opening').classList.remove('hidden');
-        document.getElementById('no-activity').classList.add('hidden');
-        document.getElementById('last-pack-time').textContent = timeAgo(AppState.lastPackOpening.timestamp);
-        document.getElementById('last-pack-cards').textContent = `Trovati ${AppState.lastPackOpening.cards.length} nuovi super eroi`;
+    const lastPackOpening = AppState.lastPackOpening;
+    if (lastPackOpening) {
+        const lastPackElement = document.getElementById('last-pack-opening');
+        const noActivityElement = document.getElementById('no-activity');
+        const lastPackTimeElement = document.getElementById('last-pack-time');
+        const lastPackCardsElement = document.getElementById('last-pack-cards');
+        
+        if (lastPackElement && noActivityElement && lastPackTimeElement && lastPackCardsElement) {
+            lastPackElement.classList.remove('hidden');
+            noActivityElement.classList.add('hidden');
+            lastPackTimeElement.textContent = timeAgo(lastPackOpening.timestamp);
+            lastPackCardsElement.textContent = `Trovati ${lastPackOpening.cards.length} nuovi super eroi`;
+            
+            // Aggiungi il tipo di pacchetto se disponibile
+            if (lastPackOpening.packType) {
+                lastPackCardsElement.textContent += ` (${lastPackOpening.packType})`;
+            }
+        }
     } else {
-        document.getElementById('last-pack-opening').classList.add('hidden');
-        document.getElementById('no-activity').classList.remove('hidden');
+        const lastPackElement = document.getElementById('last-pack-opening');
+        const noActivityElement = document.getElementById('no-activity');
+        if (lastPackElement && noActivityElement) {
+            lastPackElement.classList.add('hidden');
+            noActivityElement.classList.remove('hidden');
+        }
+    }
+}
+
+// Funzione per gestire il modal dei crediti
+function setupCreditsModal() {
+    const creditsButton = document.getElementById('credits-button');
+    const creditsModal = document.getElementById('credits-modal');
+    const closeCreditsModal = document.getElementById('close-credits-modal');
+    const buyCreditsBtn = document.getElementById('buy-credits-btn');
+    const modalCredits = document.getElementById('modal-credits');
+    const creditsHistory = document.getElementById('credits-history');
+
+    // Apri il modal quando si clicca sui crediti
+    creditsButton.addEventListener('click', () => {
+        creditsModal.classList.remove('hidden');
+        updateCreditsModal();
+    });
+
+    // Chiudi il modal quando si clicca sul pulsante chiudi
+    closeCreditsModal.addEventListener('click', () => {
+        creditsModal.classList.add('hidden');
+    });
+
+    // Chiudi il modal quando si clicca fuori
+    creditsModal.addEventListener('click', (e) => {
+        if (e.target === creditsModal) {
+            creditsModal.classList.add('hidden');
+        }
+    });
+
+    // Gestisci l'acquisto di crediti
+    buyCreditsBtn.addEventListener('click', () => {
+        // Implementiamo l'acquisto di crediti con opzioni
+        const amount = 5; // Default amount
+        buyCredits(amount);
+        creditsModal.classList.add('hidden');
+    });
+
+    // Funzione per aggiornare il contenuto del modal
+    function updateCreditsModal() {
+        // Aggiorna il numero di crediti nel modal
+        modalCredits.textContent = AppState.user.credits;
+
+        // Recupera lo storico delle transazioni
+        const transactions = AppState.user.creditTransactions || [];
+        
+        // Aggiorna lo storico nel modal
+        creditsHistory.innerHTML = transactions.length > 0 
+            ? transactions.map(transaction => `
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                    <div>
+                        <p class="text-sm text-gray-900 dark:text-white">${transaction.description}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${new Date(transaction.date).toLocaleDateString('it-IT')}</p>
+                    </div>
+                    <span class="text-sm ${transaction.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+                        ${transaction.amount > 0 ? '+' : ''}${transaction.amount}
+                    </span>
+                </div>
+            `).join('')
+            : '<p class="text-sm text-gray-500 dark:text-gray-400">Nessuna transazione trovata</p>';
     }
 }
 
@@ -439,4 +579,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('Caricamento dati utente...');
     await loadUserData();
     await loadAvailableTrades();
+
+    // Inizializza il modal dei crediti
+    setupCreditsModal();
 }); 

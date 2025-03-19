@@ -5,6 +5,22 @@ let currentPage = 1;
 const cardsPerPage = 12;
 let currentTab = 'collected';
 
+// Arrays per carte possedute, doppie e mancanti
+let collectedCards = [];
+let duplicateCards = [];
+let missingCards = [];
+
+// Elementi DOM
+const loadingIndicator = document.getElementById('loading-indicator');
+const collectedCardsContainer = document.getElementById('collected-cards');
+const duplicatesCardsContainer = document.getElementById('duplicates-cards');
+const missingCardsContainer = document.getElementById('missing-cards');
+const progressBar = document.getElementById('progress-bar');
+const completionPercentage = document.getElementById('completion-percentage');
+const uniqueCardsCount = document.getElementById('unique-cards');
+const totalAvailableCards = document.getElementById('total-available-cards');
+const duplicateCardsCount = document.getElementById('duplicate-cards');
+
 // Funzione per verificare l'autenticazione
 function checkAuth() {
     const token = localStorage.getItem('token');
@@ -15,8 +31,23 @@ function checkAuth() {
     return true;
 }
 
-// Funzione per caricare i dati dell'utente
+// Funzione per mostrare il loader
+function showLoader() {
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'flex';
+    }
+}
+
+// Funzione per nascondere il loader
+function hideLoader() {
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+    }
+}
+
+// Funzione per caricare i dati dell'utente e le carte
 async function loadUserData() {
+    showLoader();
     try {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -25,14 +56,7 @@ async function loadUserData() {
             return;
         }
 
-        // Verifica se ci sono carte salvate in localStorage
-        const savedCards = localStorage.getItem('userCards');
-        if (savedCards) {
-            console.log('Carte trovate in localStorage');
-            userCards = JSON.parse(savedCards);
-        }
-
-        console.log('Recupero dati utente...');
+        // Recupera i dati dell'utente e le carte
         const response = await fetch('http://localhost:3000/api/user/data', {
             method: 'GET',
             headers: {
@@ -46,20 +70,21 @@ async function loadUserData() {
 
         const data = await response.json();
         if (data.success) {
+            console.log('Dati ricevuti:', data);
             userCards = data.cards;
-            // Aggiorna le carte in localStorage
-            localStorage.setItem('userCards', JSON.stringify(userCards));
-            
             // Aggiorna l'interfaccia utente
             document.getElementById('user-credits').textContent = data.credits;
-            updateAlbumProgress();
             
-            // Carica gli eroi Marvel
+            // Carica gli eroi Marvel e aggiorna la visualizzazione
             await loadMarvelHeroes();
+            updateAlbumProgress();
+            updateAlbumView();
         }
     } catch (error) {
         console.error('Errore nel caricamento dei dati:', error);
         showError('Errore nel caricamento dei dati utente: ' + error.message);
+    } finally {
+        hideLoader();
     }
 }
 
@@ -81,15 +106,6 @@ async function loadMarvelHeroes() {
         if (data.success && data.data && data.data.results) {
             allHeroes = data.data.results;
             console.log('Eroi Marvel caricati:', allHeroes.length);
-            
-            // Salva gli eroi in localStorage per accesso rapido
-            localStorage.setItem('marvelHeroes', JSON.stringify(allHeroes));
-            
-            // Aggiorna la visualizzazione dell'album
-            updateAlbumView();
-            
-            // Aggiorna il progresso dell'album con il numero corretto di eroi
-            updateAlbumProgress();
         } else {
             throw new Error('Formato dati non valido');
         }
@@ -101,31 +117,63 @@ async function loadMarvelHeroes() {
 
 // Funzione per aggiornare il progresso dell'album
 function updateAlbumProgress() {
-    const uniqueCards = new Set(userCards.map(card => card.id)).size;
-    const totalCards = allHeroes.length || 50; // Utilizzo il numero effettivo di eroi o 50 come fallback
-    const completionPercentage = Math.round((uniqueCards / totalCards) * 100);
+    updateCardArrays();
     
-    // Calcola il numero di carte doppie
-    const duplicateCount = userCards.reduce((total, card) => total + (card.count > 1 ? card.count - 1 : 0), 0);
+    const uniqueCards = collectedCards.length;
+    const totalCards = allHeroes.length || 50;
+    const percentage = Math.round((uniqueCards / totalCards) * 100);
+    const duplicateCount = duplicateCards.length;
     
-    // Aggiorna l'interfaccia
-    document.getElementById('completion-percentage').textContent = completionPercentage;
-    document.getElementById('progress-bar').style.width = `${completionPercentage}%`;
-    document.getElementById('unique-cards').textContent = uniqueCards;
-    document.getElementById('duplicate-cards').textContent = duplicateCount;
+    progressBar.style.width = `${percentage}%`;
+    completionPercentage.textContent = percentage;
+    uniqueCardsCount.textContent = uniqueCards;
+    totalAvailableCards.textContent = totalCards;
+    duplicateCardsCount.textContent = duplicateCount;
+}
+
+// Funzione per aggiornare gli array delle carte
+function updateCardArrays() {
+    // Raggruppa le carte per cardId invece che per id del documento
+    const cardGroups = {};
+    userCards.forEach(card => {
+        const cardId = card.cardId || card.id; // Supporta sia cardId che id per retrocompatibilità
+        if (!cardGroups[cardId]) {
+            cardGroups[cardId] = {
+                id: cardId,
+                name: card.name,
+                thumbnail: card.thumbnail,
+                count: 0,
+                cards: [] // Array per tenere traccia di tutte le istanze della carta
+            };
+        }
+        cardGroups[cardId].count++;
+        cardGroups[cardId].cards.push(card);
+    });
+
+    // Aggiorna gli array
+    collectedCards = Object.values(cardGroups).filter(card => card.count === 1);
+    duplicateCards = Object.values(cardGroups).filter(card => card.count > 1);
     
-    // Aggiorna anche il totale delle carte disponibili
-    const totalCardsElement = document.getElementById('total-available-cards');
-    if (totalCardsElement) {
-        totalCardsElement.textContent = totalCards;
-    }
+    // Aggiorna le carte mancanti
+    const userCardIds = new Set(Object.keys(cardGroups));
+    missingCards = allHeroes
+        .filter(hero => !userCardIds.has(hero.id.toString()))
+        .map(hero => ({
+            id: hero.id.toString(),
+            name: hero.name,
+            thumbnail: `${hero.thumbnail.path}.${hero.thumbnail.extension}`,
+            count: 0
+        }));
+
+    // Log per debug
+    console.log('Gruppi di carte:', cardGroups);
+    console.log('Carte uniche:', collectedCards.length);
+    console.log('Carte doppie:', duplicateCards.length);
+    console.log('Carte mancanti:', missingCards.length);
 }
 
 // Funzione per aggiornare la visualizzazione dell'album
 function updateAlbumView() {
-    // Resetta la paginazione
-    currentPage = 1;
-    
     // Mostra la tab corrente
     showTab(currentTab);
 }
@@ -135,26 +183,25 @@ function showTab(tabName) {
     currentTab = tabName;
     
     // Nascondi tutte le tab
-    document.getElementById('collected-cards').classList.add('hidden');
-    document.getElementById('duplicates-cards').classList.add('hidden');
-    document.getElementById('missing-cards').classList.add('hidden');
+    document.getElementById('collected-cards').style.display = 'none';
+    document.getElementById('duplicates-cards').style.display = 'none';
+    document.getElementById('missing-cards').style.display = 'none';
     
     // Mostra la tab selezionata
-    document.getElementById(`${tabName}-cards`).classList.remove('hidden');
+    const selectedContainer = document.getElementById(`${tabName}-cards`);
+    selectedContainer.style.display = 'grid';
     
     // Aggiorna lo stile dei pulsanti
-    const tabButtons = document.querySelectorAll('.tab-button');
-    tabButtons.forEach(button => {
-        button.classList.remove('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
-        button.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    const buttons = document.querySelectorAll('.tab-button');
+    buttons.forEach(button => {
+        const isSelected = button.textContent.toLowerCase().includes(tabName);
+        button.classList.toggle('border-primary-600', isSelected);
+        button.classList.toggle('text-primary-600', isSelected);
+        button.classList.toggle('dark:text-primary-400', isSelected);
+        button.classList.toggle('border-transparent', !isSelected);
+        button.classList.toggle('text-gray-500', !isSelected);
+        button.classList.toggle('dark:text-gray-400', !isSelected);
     });
-    
-    // Evidenzia il pulsante selezionato
-    const selectedButton = document.querySelector(`button[onclick="showTab('${tabName}')"]`);
-    if (selectedButton) {
-        selectedButton.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-        selectedButton.classList.add('border-primary-600', 'text-primary-600', 'dark:text-primary-400');
-    }
     
     // Aggiorna il contenuto della tab
     updateTabContent(tabName);
@@ -165,140 +212,75 @@ function updateTabContent(tabName) {
     const container = document.getElementById(`${tabName}-cards`);
     if (!container) return;
     
-    // Svuota il contenitore
-    container.innerHTML = '';
+    // Rimuovi il loader se presente
+    const existingLoader = container.querySelector('#loading-indicator');
+    if (existingLoader) {
+        existingLoader.remove();
+    }
     
-    // Prepara i dati in base alla tab
+    // Determina quali carte mostrare
     let cardsToShow = [];
-    
-    if (tabName === 'collected') {
-        // Carte possedute (uniche)
-        cardsToShow = userCards.filter(card => card.count > 0);
-    } else if (tabName === 'duplicates') {
-        // Carte doppie
-        cardsToShow = userCards.filter(card => card.count > 1);
-    } else if (tabName === 'missing') {
-        // Carte mancanti
-        const userCardIds = new Set(userCards.map(card => card.id));
-        cardsToShow = allHeroes
-            .filter(hero => !userCardIds.has(hero.id.toString()))
-            .map(hero => ({
-                id: hero.id.toString(),
-                name: hero.name,
-                thumbnail: `${hero.thumbnail.path}.${hero.thumbnail.extension}`,
-                count: 0
-            }));
+    switch (tabName) {
+        case 'collected':
+            cardsToShow = collectedCards;
+            break;
+        case 'duplicates':
+            cardsToShow = duplicateCards;
+            break;
+        case 'missing':
+            cardsToShow = missingCards;
+            break;
     }
-    
-    // Calcola il numero totale di pagine
-    const totalPages = Math.ceil(cardsToShow.length / cardsPerPage);
-    
-    // Limita la pagina corrente
-    if (currentPage > totalPages) {
-        currentPage = totalPages || 1;
-    }
-    
-    // Calcola l'indice di inizio e fine per la pagina corrente
-    const startIndex = (currentPage - 1) * cardsPerPage;
-    const endIndex = Math.min(startIndex + cardsPerPage, cardsToShow.length);
-    
-    // Ottieni le carte per la pagina corrente
-    const cardsForCurrentPage = cardsToShow.slice(startIndex, endIndex);
     
     // Se non ci sono carte da mostrare
-    if (cardsForCurrentPage.length === 0) {
+    if (cardsToShow.length === 0) {
         container.innerHTML = `
             <div class="col-span-full text-center py-8">
-                <p class="text-gray-500 dark:text-gray-400">Nessuna carta da mostrare in questa sezione.</p>
+                <p class="text-gray-500 dark:text-gray-400">
+                    ${tabName === 'collected' ? 'Non hai ancora carte uniche nella tua collezione.' :
+                      tabName === 'duplicates' ? 'Non hai ancora carte doppie.' :
+                      'Complimenti! Hai completato la collezione!'}
+                </p>
+                ${tabName !== 'duplicates' ? `
+                    <a href="pacchetti.html" class="mt-4 inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors">
+                        Apri un Nuovo Pacchetto
+                    </a>
+                ` : ''}
             </div>
         `;
         return;
     }
     
-    // Crea le card per ogni carta
-    cardsForCurrentPage.forEach(card => {
+    // Renderizza le carte
+    container.innerHTML = '';
+    cardsToShow.forEach(card => {
         const cardElement = document.createElement('div');
-        cardElement.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105';
-        
-        // Contenuto della card
+        cardElement.className = 'bg-white dark:bg-gray-700 rounded-lg shadow overflow-hidden';
         cardElement.innerHTML = `
-            <img src="${card.thumbnail || 'images/card-placeholder.jpg'}" alt="${card.name}" class="w-full h-48 object-cover">
+            <img src="${card.thumbnail}" alt="${card.name}" class="w-full h-48 object-cover">
             <div class="p-4">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${card.name}</h3>
-                ${card.count > 1 ? `<p class="text-sm text-gray-600 dark:text-gray-400">Quantità: ${card.count}</p>` : ''}
+                ${card.count > 1 ? `
+                    <p class="text-sm text-primary-600 dark:text-primary-400 mt-1">
+                        ${card.count}x copie
+                    </p>
+                ` : ''}
                 ${tabName === 'duplicates' ? `
-                    <button onclick="offerForTrade('${card.id}')" class="mt-2 px-3 py-1 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 transition-colors">
-                        Scambia
-                    </button>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        ${card.cards.slice(1).map((duplicate, index) => `
+                            <button onclick="offerForTrade('${duplicate.id}')" class="px-3 py-1 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 transition-colors">
+                                Scambia copia ${index + 1}
+                            </button>
+                        `).join('')}
+                    </div>
                 ` : ''}
             </div>
         `;
-        
         container.appendChild(cardElement);
     });
-    
-    // Aggiungi la paginazione
-    if (totalPages > 1) {
-        const paginationElement = document.createElement('div');
-        paginationElement.className = 'col-span-full flex justify-center mt-6 space-x-2';
-        
-        // Pulsante pagina precedente
-        if (currentPage > 1) {
-            const prevButton = document.createElement('button');
-            prevButton.className = 'px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-md text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors';
-            prevButton.textContent = 'Precedente';
-            prevButton.onclick = () => {
-                currentPage--;
-                updateTabContent(tabName);
-            };
-            paginationElement.appendChild(prevButton);
-        }
-        
-        // Numeri di pagina
-        for (let i = 1; i <= totalPages; i++) {
-            if (
-                i === 1 || // Prima pagina
-                i === totalPages || // Ultima pagina
-                (i >= currentPage - 1 && i <= currentPage + 1) // Pagine intorno a quella corrente
-            ) {
-                const pageButton = document.createElement('button');
-                pageButton.className = `px-3 py-1 rounded-md text-sm transition-colors ${
-                    i === currentPage 
-                        ? 'bg-primary-600 text-white' 
-                        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`;
-                pageButton.textContent = i;
-                pageButton.onclick = () => {
-                    currentPage = i;
-                    updateTabContent(tabName);
-                };
-                paginationElement.appendChild(pageButton);
-            } else if (
-                (i === 2 && currentPage > 3) || 
-                (i === totalPages - 1 && currentPage < totalPages - 2)
-            ) {
-                // Aggiungi puntini di sospensione
-                const ellipsis = document.createElement('span');
-                ellipsis.className = 'px-3 py-1 text-gray-500 dark:text-gray-400';
-                ellipsis.textContent = '...';
-                paginationElement.appendChild(ellipsis);
-            }
-        }
-        
-        // Pulsante pagina successiva
-        if (currentPage < totalPages) {
-            const nextButton = document.createElement('button');
-            nextButton.className = 'px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-md text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors';
-            nextButton.textContent = 'Successiva';
-            nextButton.onclick = () => {
-                currentPage++;
-                updateTabContent(tabName);
-            };
-            paginationElement.appendChild(nextButton);
-        }
-        
-        container.appendChild(paginationElement);
-    }
+
+    // Log per debug
+    console.log(`Tab ${tabName}:`, cardsToShow.length, 'carte mostrate');
 }
 
 // Funzione per offrire una carta per lo scambio
@@ -317,21 +299,7 @@ function showError(message) {
 
 // Inizializzazione
 document.addEventListener('DOMContentLoaded', async () => {
-    if (!checkAuth()) return;
-    
-    // Carica i dati dell'utente
-    await loadUserData();
-    
-    // Imposta gli event listener per i pulsanti delle tab
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.addEventListener('click', (e) => {
-            const tabName = e.target.getAttribute('data-tab');
-            if (tabName) {
-                showTab(tabName);
-            }
-        });
-    });
-    
-    // Mostra la tab "collected" di default
-    showTab('collected');
+    if (checkAuth()) {
+        await loadUserData();
+    }
 }); 

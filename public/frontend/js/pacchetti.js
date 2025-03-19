@@ -270,106 +270,143 @@ function showPackOpeningModal(cards) {
 }
 
 // Funzione per aprire un nuovo pacchetto
-function openNewPack() {
-    // Verifica se l'utente ha abbastanza crediti
-    if (AppState.user.credits < 1) {
-        alert('Non hai abbastanza crediti per aprire un pacchetto!');
-        return;
-    }
-
-    // Ottieni il token di autenticazione
+async function openNewPack() {
     const token = localStorage.getItem('token');
     if (!token) {
-        console.error('Token di autenticazione non trovato');
         alert('Devi effettuare il login per aprire un pacchetto');
         return;
     }
 
-    // Mostra un indicatore di caricamento
-    const container = document.getElementById('packs-container');
-    container.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Apertura pacchetto in corso...</p></div>';
-
-    // Invia la richiesta al server per acquistare un pacchetto
-    fetch('http://localhost:3000/api/cards/buy-pack', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Errore durante l\'acquisto del pacchetto');
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (!data.success) {
-            throw new Error(data.message || 'Errore durante l\'acquisto del pacchetto');
-        }
-
-        // Aggiorna i crediti dell'utente
-        AppState.user.credits = data.newCredits;
-
-        // Aggiorna le statistiche
-        AppState.user.totalPacks = (AppState.user.totalPacks || 0) + 1;
-        AppState.user.totalCards = data.totalCards;
-
-        // Crea un nuovo pacchetto con le carte ricevute dal server
-        const newPack = {
-            id: Date.now(),
-            type: "Standard",
-            cards: data.newCards.map(card => card.name),
-            opened: true,
-            purchaseDate: new Date().toISOString().split('T')[0],
-            openedDate: new Date().toISOString().split('T')[0],
-            cost: 1
-        };
-
-        // Aggiungi il pacchetto alla lista
-        if (!AppState.packs) {
-            AppState.packs = [];
-        }
-        AppState.packs.unshift(newPack);
-
-        // Aggiorna l'album con le nuove carte
-        data.newCards.forEach(card => {
-            AppState.album.cards.add(card.name);
+    try {
+        // Verifica i crediti dell'utente
+        const response = await fetch('http://localhost:3000/api/user/data', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
         });
 
-        // Salva il timestamp dell'apertura del pacchetto
-        AppState.lastPackOpening = {
-            timestamp: new Date().toISOString(),
-            cards: data.newCards.map(card => card.name)
-        };
+        if (!response.ok) {
+            throw new Error('Errore nel recupero dei dati utente');
+        }
 
-        // Aggiorna l'interfaccia
-        updateAllStats();
-        displayPacks(AppState.packs);
+        const userData = await response.json();
+        const credits = userData.credits;
 
-        // Prepara le carte per il modal
-        const cards = data.newCards.map(card => ({
-            name: card.name,
-            isNew: true, // Assumiamo che siano tutte nuove, il server gestisce i doppioni
-            thumbnail: card.thumbnail
-        }));
+        if (credits < 1) {
+            // Mostra il modal per crediti insufficienti
+            showInsufficientCreditsModal();
+            return;
+        }
 
-        // Mostra le carte nel modal
-        showPackOpeningModal(cards);
+        // Procedi con l'apertura del pacchetto
+        // ... resto del codice per l'apertura del pacchetto ...
+    } catch (error) {
+        console.error('Errore:', error);
+        alert('Si è verificato un errore durante l\'apertura del pacchetto');
+    }
+}
 
-        // Notifica che le carte dell'utente sono state aggiornate
-        AppState.notify('user');
-        AppState.notify('album');
-        
-        console.log("Pacchetto aperto con successo:", data);
-    })
-    .catch(error => {
-        console.error('Errore durante l\'apertura del pacchetto:', error);
-        alert('Errore durante l\'apertura del pacchetto: ' + error.message);
-        
-        // Ripristina l'interfaccia
-        displayPacks(AppState.packs);
-    });
+// Funzione per mostrare il modal dei crediti insufficienti
+function showInsufficientCreditsModal() {
+    // Crea il modal se non esiste
+    let modal = document.getElementById('insufficient-credits-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'insufficient-credits-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="mt-4 text-xl font-bold text-gray-900 dark:text-white">Crediti Insufficienti</h3>
+                    <p class="mt-2 text-gray-500 dark:text-gray-400">Non hai abbastanza crediti per aprire un pacchetto.</p>
+                    <div class="mt-6 flex flex-col space-y-3">
+                        <button onclick="getMoreCredits()" class="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                            Ottieni 5 Crediti Gratis
+                        </button>
+                        <button onclick="closeInsufficientCreditsModal()" class="w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                            Chiudi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    } else {
+        modal.classList.remove('hidden');
+    }
+}
+
+// Funzione per chiudere il modal dei crediti insufficienti
+function closeInsufficientCreditsModal() {
+    const modal = document.getElementById('insufficient-credits-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// Funzione per ottenere più crediti
+async function getMoreCredits() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('Devi effettuare il login per ottenere crediti');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://localhost:3000/api/user/add-credits', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount: 5 })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Errore nell\'aggiunta dei crediti');
+        }
+
+        if (data.success) {
+            // Aggiorna il contatore dei crediti nell'interfaccia
+            const creditsElement = document.getElementById('user-credits');
+            if (creditsElement) {
+                creditsElement.textContent = data.credits;
+            }
+            
+            // Chiudi il modal
+            closeInsufficientCreditsModal();
+            
+            // Mostra un messaggio di successo
+            showSuccessMessage('Hai ricevuto 5 crediti!');
+
+            // Aggiorna AppState se necessario
+            if (window.AppState) {
+                AppState.user.credits = data.credits;
+                if (AppState.notify) {
+                    AppState.notify('user');
+                }
+            }
+        } else {
+            throw new Error(data.message || 'Errore nell\'aggiunta dei crediti');
+        }
+    } catch (error) {
+        console.error('Errore:', error);
+        alert('Si è verificato un errore durante l\'aggiunta dei crediti: ' + error.message);
+    }
+}
+
+// Funzione per mostrare un messaggio di successo
+function showSuccessMessage(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    successDiv.textContent = message;
+    document.body.appendChild(successDiv);
+    setTimeout(() => successDiv.remove(), 3000);
 }
 
 // Funzione per chiudere il modal

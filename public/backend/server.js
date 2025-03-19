@@ -929,6 +929,46 @@ app.use((error, req, res, next) => {
     next(error);
 });
 
+// Endpoint per aggiungere crediti all'utente
+app.post('/api/user/add-credits', authenticateToken, async (req, res) => {
+    try {
+        const { amount } = req.body;
+        
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Quantità di crediti non valida' 
+            });
+        }
+
+        // Aggiorna i crediti dell'utente
+        const user = await User.findByIdAndUpdate(
+            req.user._id,  // Usa _id invece di id
+            { $inc: { credits: amount } },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Utente non trovato' 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'Crediti aggiunti con successo',
+            credits: user.credits 
+        });
+    } catch (error) {
+        console.error('Errore nell\'aggiunta dei crediti:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Errore nell\'aggiunta dei crediti' 
+        });
+    }
+});
+
 // Avvio del server
 const startServer = async (initialPort) => {
     const server = app.listen(initialPort)

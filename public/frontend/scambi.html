@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scambi - AFSE</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -33,6 +34,7 @@
     <script src="js/firebase-config.js" type="module"></script>
     <script src="js/state.js"></script>
     <script src="js/scambi.js" type="module"></script>
+    <script src="js/ui-settings.js"></script>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
     <!-- Navbar -->
@@ -65,7 +67,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <!-- Theme Toggle Button -->
-                    <button onclick="document.documentElement.classList.toggle('dark')" class="p-2 text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-500">
+                    <button onclick="toggleTheme()" class="p-2 text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-500">
                         <svg class="h-6 w-6 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
@@ -73,12 +75,13 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                         </svg>
                     </button>
+                    <!-- Crediti -->
                     <div class="flex-shrink-0">
-                        <span class="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200">
+                        <span class="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 cursor-pointer" id="credits-button">
                             <svg class="-ml-1 mr-1.5 h-2 w-2 text-primary-400" fill="currentColor" viewBox="0 0 8 8">
                                 <circle cx="4" cy="4" r="3" />
                             </svg>
-                            Crediti: <span id="user-credits" class="ml-1">50</span>
+                            Crediti: <span id="user-credits" class="ml-1">10</span>
                         </span>
                     </div>
                     <div class="relative">

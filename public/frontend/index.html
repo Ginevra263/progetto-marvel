@@ -9,24 +9,8 @@
         tailwind.config = {
             darkMode: 'class'
         }
-
-        function toggleTheme() {
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark');
-                localStorage.theme = 'light';
-            } else {
-                document.documentElement.classList.add('dark');
-                localStorage.theme = 'dark';
-            }
-        }
-
-        // On page load, check localStorage and system preferences
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
     </script>
+    <script src="js/ui-settings.js"></script>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
     <!-- Header -->
@@ -35,7 +19,7 @@
             <div class="flex items-center justify-between">
                 <div class="text-white text-2xl font-bold">AFSE</div>
                 <div class="flex items-center space-x-4">
-                    <button onclick="toggleTheme()" class="p-2 rounded-lg bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-gray-700 transition">
+                    <button onclick="toggleTheme()" class="p-2 text-white hover:text-gray-300 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                         </svg>
