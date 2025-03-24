@@ -91,27 +91,44 @@ async function loadUserData() {
 // Funzione per caricare gli eroi Marvel
 async function loadMarvelHeroes() {
     try {
+        console.log('1. Iniziando il caricamento degli eroi Marvel...');
         const token = localStorage.getItem('token');
+        if (!token) {
+            console.error('2. Token non trovato nel localStorage');
+            throw new Error('Token non trovato');
+        }
+        console.log('3. Token trovato, effettuo la richiesta all\'API...');
+        
         const response = await fetch('http://localhost:3000/api/marvel/characters', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
-
+        
+        console.log('4. Risposta ricevuta dall\'API');
+        console.log('- Status:', response.status);
+        
         if (!response.ok) {
+            console.error('5. Errore nella risposta:', response.status, response.statusText);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-
+        
         const data = await response.json();
-        if (data.success && data.data && data.data.results) {
-            allHeroes = data.data.results;
-            console.log('Eroi Marvel caricati:', allHeroes.length);
-        } else {
-            throw new Error('Formato dati non valido');
+        console.log('6. Dati ricevuti:', data);
+        
+        if (!data.success || !data.data || !data.data.results) {
+            console.error('7. Dati non validi ricevuti:', data);
+            throw new Error('Dati non validi ricevuti dall\'API');
         }
+        
+        console.log('8. Elaborazione dei dati degli eroi...');
+        const heroes = data.data.results;
+        console.log(`9. ${heroes.length} eroi caricati con successo`);
+        
+        return heroes;
     } catch (error) {
         console.error('Errore nel caricamento degli eroi Marvel:', error);
-        showError('Errore nel caricamento degli eroi: ' + error.message);
+        throw error;
     }
 }
 

@@ -17,7 +17,7 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:Lampo411@marvel.vtlvt.mongodb.net/?retryWrites=true&w=majority&appName=marvel";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:Lampo411@marvel.vtlvt.mongodb.net/marvel?retryWrites=true&w=majority";
 const PUBLIC_KEY= process.env.PUBLIC_KEY || 'https://marvel.com';
 const PRIVATE_KEY= process.env.PRIVATE_KEY || 'https://marvel.com';
 const JWT_SECRET = process.env.JWT_SECRET || 'f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7';
@@ -147,25 +147,31 @@ const tradeSchema = new mongoose.Schema({
 const User = mongoose.model('users', userSchema);
 const Trade = mongoose.model('trades', tradeSchema);
 
-// Connessione a MongoDB
-console.log('Tentativo di connessione a MongoDB...');
-mongoose.connect(MONGO_URI, { 
-    useNewUrlParser: true, 
+// Opzioni di connessione MongoDB
+const mongoOptions = {
+    useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 30000, // Aumentato a 30 secondi
-    heartbeatFrequencyMS: 2000,     // Ridotto il polling
-    connectTimeoutMS: 30000,        // Timeout di connessione
-    socketTimeoutMS: 45000,         // Timeout del socket
-    family: 4                       // Forza IPv4
-})
-.then(() => {
-    console.log('Connesso con successo al database MongoDB');
-})
-.catch(err => {
-    console.error('Errore di connessione al database:', err);
-    console.error('MongoDB URI:', MONGO_URI.replace(/:[^:@]*@/, ':****@')); // Nascondi la password nei log
-    process.exit(1);
-});
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 30000,
+    retryWrites: true,
+    retryReads: true,
+    maxPoolSize: 10,
+    heartbeatFrequencyMS: 2000,
+    family: 4
+};
+
+// Connessione a MongoDB con gestione errori migliorata
+console.log('Tentativo di connessione a MongoDB...');
+mongoose.connect(MONGO_URI, mongoOptions)
+    .then(() => {
+        console.log('Connesso a MongoDB con successo');
+    })
+    .catch(err => {
+        console.error('Errore di connessione a MongoDB:', err);
+        console.error('MongoDB URI:', MONGO_URI.replace(/:[^:@]*@/, ':****@'));
+        process.exit(1);
+    });
 
 // Gestione eventi di connessione MongoDB
 mongoose.connection.on('connected', () => {
@@ -696,27 +702,86 @@ app.get('/api/marvel', async (req, res) => {
 // Endpoint per ottenere i personaggi Marvel con autenticazione
 app.get('/api/marvel/characters', authenticateToken, async (req, res) => {
     try {
+        console.log('1. Richiesta per ottenere i personaggi Marvel ricevuta');
         const ts = new Date().getTime();
         const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
         
-        const response = await axios.get('https://gateway.marvel.com/v1/public/characters', {
+        console.log('2. Parametri API Marvel:');
+        console.log('- Timestamp:', ts);
+        console.log('- Public Key:', MARVEL_PUBLIC_KEY);
+        console.log('- Hash:', hash);
+        
+        // Configura axios con timeout più lungo e retry
+        const axiosInstance = axios.create({
+            timeout: 30000, // 30 secondi
+            maxRedirects: 5,
+            validateStatus: function (status) {
+                return status >= 200 && status < 300;
+            }
+        });
+
+        const url = 'https://gateway.marvel.com/v1/public/characters';
+        console.log('3. Tentativo di chiamata all\'API Marvel...');
+        console.log('- URL:', url);
+        console.log('- Parametri completi:', {
+            ts,
+            apikey: MARVEL_PUBLIC_KEY,
+            hash,
+            limit: 50
+        });
+
+        try {
+            // Prima verifica la connettività generale
+            await axios.get('https://www.google.com');
+            console.log('Connessione internet verificata');
+        } catch (error) {
+            console.error('Errore nella verifica della connessione internet:', error.message);
+            throw new Error('Problema di connessione internet');
+        }
+        
+        const response = await axiosInstance.get(url, {
             params: {
                 ts,
                 apikey: MARVEL_PUBLIC_KEY,
                 hash,
-                limit: 50 // Limitiamo a 50 personaggi per l'album
+                limit: 50
             }
         });
+        
+        console.log('4. Risposta ricevuta dall\'API Marvel');
+        console.log('- Status:', response.status);
+        console.log('- Headers:', response.headers);
+        console.log('- Data:', JSON.stringify(response.data, null, 2));
         
         res.json({
             success: true,
             data: response.data.data
         });
     } catch (error) {
-        console.error('Errore nella chiamata all\'API Marvel:', error);
+        console.error('Errore nella chiamata all\'API Marvel:');
+        console.error('- Message:', error.message);
+        console.error('- Stack:', error.stack);
+        if (error.response) {
+            console.error('- Response Status:', error.response.status);
+            console.error('- Response Data:', error.response.data);
+            console.error('- Response Headers:', error.response.headers);
+        }
+        if (error.request) {
+            console.error('- Request:', error.request);
+        }
+        if (error.config) {
+            console.error('- Request Config:', {
+                url: error.config.url,
+                method: error.config.method,
+                headers: error.config.headers,
+                params: error.config.params
+            });
+        }
         res.status(500).json({ 
             success: false, 
-            message: 'Errore nella chiamata all\'API Marvel' 
+            message: 'Errore nella chiamata all\'API Marvel',
+            error: error.message,
+            details: error.response ? error.response.data : null
         });
     }
 });

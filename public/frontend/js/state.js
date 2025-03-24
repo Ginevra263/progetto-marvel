@@ -1,70 +1,90 @@
 // AppState - Gestione centralizzata dello stato dell'applicazione
-const AppState = {
-    // Stato iniziale
-    user: {
-        credits: 10, // Inizia con 10 crediti
-        totalPacks: 0,
-        totalCards: 0,
-        duplicateCards: 0,
-        activeTrades: 0,
-        creditTransactions: [] // Storico delle transazioni
-    },
+class AppStateManager {
+    constructor() {
+        this.credits = 0;
+        this.virtualMoney = 100; // Portafoglio virtuale iniziale
+        this.creditTransactions = [];
+        this.user = {
+            totalPacks: 0,
+            totalCards: 0,
+            duplicateCards: 0,
+            activeTrades: 0,
+            credits: 0
+        };
+        
+        // Album dell'utente
+        this.album = {
+            cards: new Set(), // Set per gestire automaticamente i doppioni
+            duplicates: {} // Oggetto per tenere traccia dei doppioni
+        };
 
-    // Album dell'utente
-    album: {
-        cards: new Set(), // Set per gestire automaticamente i doppioni
-        duplicates: {} // Oggetto per tenere traccia dei doppioni
-    },
-
-    // Pacchetti dell'utente
-    packs: [],
-
-    lastPackOpening: null,
-
-    // Subscribers per eventi specifici
-    _subscribers: {
-        credits: [],
-        packs: [],
-        album: [],
-        lastPackOpening: []
-    },
+        // Pacchetti dell'utente
+        this.packs = [];
+        this.lastPackOpening = null;
+        
+        // Subscribers per eventi specifici
+        this._subscribers = {
+            credits: [],
+            packs: [],
+            album: [],
+            lastPackOpening: []
+        };
+        
+        // Subscribers generici
+        this.subscribers = [];
+        
+        this.loadState();
+    }
 
     // Metodo per aggiornare i crediti
     updateCredits(newCredits) {
-        this.user.credits = newCredits;
+        this.credits = newCredits;
+        this.user.credits = newCredits; // Aggiorna anche credits nell'oggetto user
         // Salva nel localStorage per persistenza tra pagine
         localStorage.setItem('userCredits', newCredits);
         // Notifica i subscribers
         this._notifySubscribers('credits');
-    },
+    }
+
+    // Metodo per ottenere i crediti
+    getCredits() {
+        return this.credits;
+    }
+
+    // Metodo per ottenere il portafoglio virtuale
+    getVirtualMoney() {
+        return this.virtualMoney;
+    }
 
     // Metodo per aggiungere una transazione
     addCreditTransaction(amount, description) {
         const transaction = {
             date: new Date().toISOString(),
             amount: amount,
-            description: description
+            description: description,
+            type: amount > 0 ? 'purchase' : 'usage',
+            timestamp: new Date().toISOString()
         };
         
         // Aggiungi la transazione all'inizio dell'array
-        this.user.creditTransactions.unshift(transaction);
+        this.creditTransactions.unshift(transaction);
         
         // Limita lo storico a 20 transazioni
-        if (this.user.creditTransactions.length > 20) {
-            this.user.creditTransactions = this.user.creditTransactions.slice(0, 20);
+        if (this.creditTransactions.length > 20) {
+            this.creditTransactions = this.creditTransactions.slice(0, 20);
         }
         
         // Salva nel localStorage
-        localStorage.setItem('creditTransactions', JSON.stringify(this.user.creditTransactions));
+        localStorage.setItem('creditTransactions', JSON.stringify(this.creditTransactions));
         
         // Notifica i subscribers
         this._notifySubscribers('credits');
-    },
+    }
 
     // Metodo per registrare un'apertura di pacchetto
     recordPackOpening(cards, packType = 'Standard') {
         // Aggiorna i crediti (sottrae un credito)
-        this.updateCredits(this.user.credits - 1);
+        this.updateCredits(this.credits - 1);
         
         // Registra la transazione
         this.addCreditTransaction(-1, 'Apertura pacchetto figurine');
@@ -86,7 +106,7 @@ const AppState = {
         // Notifica i subscribers
         this._notifySubscribers('packs');
         this._notifySubscribers('lastPackOpening');
-    },
+    }
 
     // Funzione per aggiungere carte all'album
     addCardsToAlbum(cards) {
@@ -107,113 +127,134 @@ const AppState = {
 
         this.saveState();
         this._notifySubscribers('album');
-    },
+    }
 
-    // Funzione per aggiungere un nuovo pacchetto
-    addPack(pack) {
-        this.packs.unshift(pack);
-        this.user.totalPacks++;
-        
-        if (pack.opened) {
-            this.addCardsToAlbum(pack.cards);
-        }
-
-        this.saveState();
-        this._notifySubscribers('packs');
-    },
-
-    // Funzione per aprire un pacchetto esistente
-    openPack(packId) {
-        const pack = this.packs.find(p => p.id === packId);
-        if (pack && !pack.opened) {
-            pack.opened = true;
-            pack.openedDate = new Date().toISOString().split('T')[0];
-            this.addCardsToAlbum(pack.cards);
+    // Metodo per acquistare crediti
+    buyCredits(amount, cost) {
+        if (this.virtualMoney >= cost) {
+            this.virtualMoney -= cost;
+            this.credits += amount;
+            this.user.credits = this.credits; // Aggiorna anche credits nell'oggetto user
+            
+            // Aggiungi la transazione
+            const transaction = {
+                type: 'purchase',
+                amount: amount,
+                cost: cost,
+                timestamp: new Date().toISOString()
+            };
+            this.creditTransactions.unshift(transaction);
+            
             this.saveState();
-            this._notifySubscribers('packs');
+            this.notifySubscribers();
+            return true;
         }
-    },
+        return false;
+    }
+
+    // Metodo per sottoscriversi a un evento specifico
+    subscribeToEvent(event, callback) {
+        if (this._subscribers[event]) {
+            this._subscribers[event].push(callback);
+        }
+    }
+
+    // Metodo generico per sottoscriversi a tutti gli eventi
+    subscribe(callback) {
+        this.subscribers.push(callback);
+    }
+
+    // Metodo per annullare la sottoscrizione
+    unsubscribeFromEvent(event, callback) {
+        if (this._subscribers[event]) {
+            this._subscribers[event] = this._subscribers[event].filter(cb => cb !== callback);
+        }
+    }
+
+    // Metodo per notificare i subscribers generici
+    notifySubscribers() {
+        if (this.subscribers) {
+            this.subscribers.forEach(callback => callback());
+        }
+    }
+
+    // Metodo privato per notificare i subscribers per evento specifico
+    _notifySubscribers(event) {
+        if (this._subscribers[event]) {
+            this._subscribers[event].forEach(callback => callback());
+        }
+    }
 
     // Funzione per salvare lo stato nel localStorage
     saveState() {
         const state = {
+            credits: this.credits,
+            virtualMoney: this.virtualMoney,
+            creditTransactions: this.creditTransactions,
             user: this.user,
             album: {
                 cards: Array.from(this.album.cards),
                 duplicates: this.album.duplicates
             },
-            packs: this.packs
+            packs: this.packs,
+            lastPackOpening: this.lastPackOpening
         };
         localStorage.setItem('appState', JSON.stringify(state));
-    },
+    }
 
-    // Metodo per sottoscriversi a un evento
-    subscribe(event, callback) {
-        if (this._subscribers[event]) {
-            this._subscribers[event].push(callback);
+    // Metodo per caricare lo stato dal localStorage
+    loadState() {
+        const savedState = localStorage.getItem('appState');
+        if (savedState) {
+            try {
+                const state = JSON.parse(savedState);
+                this.credits = state.credits || 0;
+                this.virtualMoney = state.virtualMoney !== undefined ? state.virtualMoney : 100;
+                this.creditTransactions = state.creditTransactions || [];
+                
+                if (state.user) {
+                    this.user = state.user;
+                }
+                
+                if (state.album) {
+                    this.album.cards = new Set(state.album.cards || []);
+                    this.album.duplicates = state.album.duplicates || {};
+                }
+                
+                if (state.packs) {
+                    this.packs = state.packs;
+                }
+                
+                if (state.lastPackOpening) {
+                    this.lastPackOpening = state.lastPackOpening;
+                }
+            } catch (e) {
+                console.error('Errore nel parsing dello stato:', e);
+            }
         }
-    },
-
-    // Metodo per annullare la sottoscrizione
-    unsubscribe(event, callback) {
-        if (this._subscribers[event]) {
-            this._subscribers[event] = this._subscribers[event].filter(cb => cb !== callback);
-        }
-    },
-
-    // Metodo privato per notificare i subscribers
-    _notifySubscribers(event) {
-        if (this._subscribers[event]) {
-            this._subscribers[event].forEach(callback => callback());
-        }
-    },
-
-    // Metodo per inizializzare lo stato dal localStorage
-    init() {
-        // Carica i crediti dal localStorage
+        
+        // Carica anche i crediti dal localStorage (retrocompatibilità)
         const savedCredits = localStorage.getItem('userCredits');
         if (savedCredits !== null) {
-            this.user.credits = parseInt(savedCredits, 10);
-        }
-        
-        // Carica le transazioni dal localStorage
-        const savedTransactions = localStorage.getItem('creditTransactions');
-        if (savedTransactions) {
-            this.user.creditTransactions = JSON.parse(savedTransactions);
-        }
-        
-        // Carica il contatore dei pacchetti
-        const savedTotalPacks = localStorage.getItem('totalPacks');
-        if (savedTotalPacks !== null) {
-            this.user.totalPacks = parseInt(savedTotalPacks, 10);
-        }
-        
-        // Carica l'ultimo pacchetto aperto
-        const savedLastPackOpening = localStorage.getItem('lastPackOpening');
-        if (savedLastPackOpening) {
-            this.lastPackOpening = JSON.parse(savedLastPackOpening);
+            try {
+                const parsedCredits = parseInt(savedCredits, 10);
+                this.credits = parsedCredits;
+                this.user.credits = parsedCredits; // Aggiorna anche credits nell'oggetto user
+            } catch (e) {
+                console.error('Errore nel parsing dei crediti:', e);
+            }
         }
     }
-};
+}
 
-// Inizializza lo stato
-document.addEventListener('DOMContentLoaded', () => {
-    AppState.init();
-    
-    // Aggiorna tutti gli elementi UI che mostrano i crediti
-    const creditElements = document.querySelectorAll('[id="user-credits"]');
-    creditElements.forEach(el => {
-        el.textContent = AppState.user.credits;
-    });
-    
-    // Sottoscrizione all'evento credits per aggiornare automaticamente tutti gli elementi
-    AppState.subscribe('credits', () => {
-        const creditElements = document.querySelectorAll('[id="user-credits"]');
-        creditElements.forEach(el => {
-            el.textContent = AppState.user.credits;
-        });
-    });
-});
+// Crea l'istanza globale di AppState
+const AppState = new AppStateManager();
 
-// Esporta AppState
-window.AppState = AppState; 
+// Rendi disponibile globalmente
+window.AppState = AppState;
+
+// Verifica che i metodi siano disponibili
+console.log('AppState inizializzato:');
+console.log('getCredits è definito:', typeof AppState.getCredits === 'function');
+console.log('getVirtualMoney è definito:', typeof AppState.getVirtualMoney === 'function');
+console.log('updateCredits è definito:', typeof AppState.updateCredits === 'function'); 

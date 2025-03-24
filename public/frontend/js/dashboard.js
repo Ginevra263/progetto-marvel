@@ -2,6 +2,37 @@
 let userCards = [];
 let availableTrades = [];
 
+// Funzione per formattare le timestamp in formato "tempo fa"
+function timeAgo(timestamp) {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    
+    // Converti in secondi
+    const diffSec = Math.floor(diffMs / 1000);
+    
+    if (diffSec < 60) return 'Pochi secondi fa';
+    
+    // Converti in minuti
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} ${diffMin === 1 ? 'minuto' : 'minuti'} fa`;
+    
+    // Converti in ore
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'ora' : 'ore'} fa`;
+    
+    // Converti in giorni
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'giorno' : 'giorni'} fa`;
+    
+    // Converti in settimane
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks < 4) return `${diffWeeks} ${diffWeeks === 1 ? 'settimana' : 'settimane'} fa`;
+    
+    // Se è più vecchio di 4 settimane, mostra la data
+    return past.toLocaleDateString();
+}
+
 // Funzione per verificare se l'utente è autenticato
 async function checkAuthStatus() {
     const token = localStorage.getItem('token');
@@ -65,8 +96,14 @@ async function loadUserData() {
 
         const data = await response.json();
         if (data.success) {
-            // Aggiorna i crediti nell'AppState
-            AppState.updateCredits(data.credits);
+            // Verifica che AppState sia definito e che updateCredits sia una funzione
+            if (typeof AppState !== 'undefined' && typeof AppState.updateCredits === 'function') {
+                // Aggiorna i crediti nell'AppState
+                AppState.updateCredits(data.credits);
+            } else {
+                console.error('AppState non è definito correttamente');
+            }
+            
             userCards = data.cards;
             // Aggiorna le carte in localStorage
             localStorage.setItem('userCards', JSON.stringify(userCards));
@@ -124,8 +161,9 @@ async function buyCredits(amount) {
 
 // Funzione per acquistare un pacchetto di figurine
 async function buyCardPack() {
-    if (AppState.user.credits < 1) {
-        alert('Crediti insufficienti!');
+    // Verifica che AppState sia definito e che ci siano abbastanza crediti
+    if (typeof AppState === 'undefined' || !AppState.user || typeof AppState.getCredits !== 'function' || AppState.getCredits() < 1) {
+        alert('Crediti insufficienti o stato non inizializzato correttamente!');
         return;
     }
 
@@ -141,7 +179,7 @@ async function buyCardPack() {
                         Il pacchetto costa <span class="text-primary-600 dark:text-primary-400 font-bold">1 credito</span>
                     </p>
                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                        Crediti disponibili: <span class="text-primary-600 dark:text-primary-400 font-bold">${AppState.user.credits}</span>
+                        Crediti disponibili: <span class="text-primary-600 dark:text-primary-400 font-bold">${AppState.getCredits()}</span>
                     </p>
                 </div>
                 <div class="flex justify-center space-x-4 mt-6">
@@ -172,8 +210,13 @@ async function buyCardPack() {
             });
             const data = await response.json();
             if (data.success) {
-                // Usa AppState per gestire i crediti e registrare l'apertura del pacchetto
-                AppState.recordPackOpening(data.newCards);
+                // Verifica che AppState sia definito e recordPackOpening sia una funzione
+                if (typeof AppState !== 'undefined' && typeof AppState.recordPackOpening === 'function') {
+                    // Usa AppState per gestire i crediti e registrare l'apertura del pacchetto
+                    AppState.recordPackOpening(data.newCards);
+                } else {
+                    console.error('AppState.recordPackOpening non è definito correttamente');
+                }
                 
                 // Aggiorna le carte dell'utente
                 userCards = [...userCards, ...data.newCards];
@@ -327,7 +370,13 @@ function updateUI() {
     
     // Aggiorna tutti gli elementi che mostrano i crediti
     creditsElements.forEach(element => {
-        element.textContent = AppState.user.credits;
+        if (typeof AppState !== 'undefined' && typeof AppState.getCredits === 'function') {
+            element.textContent = AppState.getCredits();
+        } else if (typeof AppState !== 'undefined' && AppState.user && AppState.user.credits) {
+            element.textContent = AppState.user.credits;
+        } else {
+            console.error('AppState non è definito correttamente');
+        }
     });
     
     if (albumContainer) {
@@ -412,34 +461,74 @@ function updateDashboardStats() {
         totalHeroes = 50; // Fallback a 50 se non ci sono dati
     }
     
-    // Aggiorna i contatori base
-    const creditsElements = document.querySelectorAll('[id="user-credits"]');
-    creditsElements.forEach(element => {
-        element.textContent = AppState.user.credits;
-    });
+    // Aggiorna i contatori base con controlli di sicurezza
+    if (typeof AppState !== 'undefined') {
+        // Aggiorna i crediti
+        const creditsElements = document.querySelectorAll('[id="user-credits"]');
+        creditsElements.forEach(element => {
+            if (element) {
+                if (typeof AppState.getCredits === 'function') {
+                    element.textContent = AppState.getCredits();
+                } else if (AppState.user && AppState.user.credits !== undefined) {
+                    element.textContent = AppState.user.credits;
+                }
+            }
+        });
+        
+        // Aggiorna il numero totale di pacchetti
+        const totalPacksElement = document.getElementById('total-packs');
+        if (totalPacksElement && AppState.user) {
+            totalPacksElement.textContent = AppState.user.totalPacks || 0;
+        }
+        
+        // Aggiorna il numero di scambi attivi
+        const activeTradesElement = document.getElementById('active-trades');
+        if (activeTradesElement && AppState.user) {
+            activeTradesElement.textContent = AppState.user.activeTrades || 0;
+        }
+    }
     
-    document.getElementById('total-packs').textContent = AppState.user.totalPacks;
-    document.getElementById('total-cards').textContent = totalCards;
-    document.getElementById('duplicate-cards').textContent = duplicateCards;
-    document.getElementById('active-trades').textContent = AppState.user.activeTrades;
+    // Aggiorniamo gli altri contatori che non dipendono da AppState
+    const totalCardsElement = document.getElementById('total-cards');
+    if (totalCardsElement) {
+        totalCardsElement.textContent = totalCards;
+    }
+    
+    const duplicateCardsElement = document.getElementById('duplicate-cards');
+    if (duplicateCardsElement) {
+        duplicateCardsElement.textContent = duplicateCards;
+    }
 
     // Aggiorna il progresso dell'album
     const progressPercentage = Math.round((uniqueCards / totalHeroes) * 100);
     
     // Aggiorna la barra di progresso
-    document.getElementById('progress-percentage').textContent = `${progressPercentage}%`;
-    document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+    const progressPercentageElement = document.getElementById('progress-percentage');
+    const progressBarElement = document.getElementById('progress-bar');
+    
+    if (progressPercentageElement) {
+        progressPercentageElement.textContent = `${progressPercentage}%`;
+    }
+    
+    if (progressBarElement) {
+        progressBarElement.style.width = `${progressPercentage}%`;
+    }
     
     // Calcola e aggiorna le figurine mancanti
     const missingCards = totalHeroes - uniqueCards;
-    document.getElementById('missing-cards').textContent = missingCards;
+    const missingCardsElement = document.getElementById('missing-cards');
+    if (missingCardsElement) {
+        missingCardsElement.textContent = missingCards;
+    }
     
     // Aggiorna il totale delle figurine doppie
-    document.getElementById('duplicate-total').textContent = duplicateCards;
+    const duplicateTotalElement = document.getElementById('duplicate-total');
+    if (duplicateTotalElement) {
+        duplicateTotalElement.textContent = duplicateCards;
+    }
 
     // Aggiorna l'ultima attività di apertura pacchetto
-    const lastPackOpening = AppState.lastPackOpening;
-    if (lastPackOpening) {
+    if (typeof AppState !== 'undefined' && AppState.lastPackOpening) {
         const lastPackElement = document.getElementById('last-pack-opening');
         const noActivityElement = document.getElementById('no-activity');
         const lastPackTimeElement = document.getElementById('last-pack-time');
@@ -448,12 +537,21 @@ function updateDashboardStats() {
         if (lastPackElement && noActivityElement && lastPackTimeElement && lastPackCardsElement) {
             lastPackElement.classList.remove('hidden');
             noActivityElement.classList.add('hidden');
-            lastPackTimeElement.textContent = timeAgo(lastPackOpening.timestamp);
-            lastPackCardsElement.textContent = `Trovati ${lastPackOpening.cards.length} nuovi super eroi`;
+            
+            // Verifica se la funzione timeAgo esiste prima di usarla
+            if (typeof timeAgo === 'function') {
+                lastPackTimeElement.textContent = timeAgo(AppState.lastPackOpening.timestamp);
+            } else {
+                // Fallback: mostra la data formattata
+                const date = new Date(AppState.lastPackOpening.timestamp);
+                lastPackTimeElement.textContent = date.toLocaleString();
+            }
+            
+            lastPackCardsElement.textContent = `Trovati ${AppState.lastPackOpening.cards.length} nuovi super eroi`;
             
             // Aggiungi il tipo di pacchetto se disponibile
-            if (lastPackOpening.packType) {
-                lastPackCardsElement.textContent += ` (${lastPackOpening.packType})`;
+            if (AppState.lastPackOpening.packType) {
+                lastPackCardsElement.textContent += ` (${AppState.lastPackOpening.packType})`;
             }
         }
     } else {
@@ -466,63 +564,52 @@ function updateDashboardStats() {
     }
 }
 
-// Funzione per gestire il modal dei crediti
+// Funzione per configurare il modal dei crediti
 function setupCreditsModal() {
     const creditsButton = document.getElementById('credits-button');
     const creditsModal = document.getElementById('credits-modal');
-    const closeCreditsModal = document.getElementById('close-credits-modal');
-    const buyCreditsBtn = document.getElementById('buy-credits-btn');
-    const modalCredits = document.getElementById('modal-credits');
-    const creditsHistory = document.getElementById('credits-history');
-
-    // Apri il modal quando si clicca sui crediti
-    creditsButton.addEventListener('click', () => {
-        creditsModal.classList.remove('hidden');
-        updateCreditsModal();
-    });
-
-    // Chiudi il modal quando si clicca sul pulsante chiudi
-    closeCreditsModal.addEventListener('click', () => {
-        creditsModal.classList.add('hidden');
-    });
-
-    // Chiudi il modal quando si clicca fuori
-    creditsModal.addEventListener('click', (e) => {
-        if (e.target === creditsModal) {
+    const closeCreditsModalButton = document.getElementById('close-credits-modal');
+    
+    // Verifica che gli elementi esistano prima di aggiungere event listener
+    if (creditsButton && creditsModal) {
+        creditsButton.addEventListener('click', () => {
+            creditsModal.classList.remove('hidden');
+            // Aggiorna il contenuto del modal
+            updateCreditsModal();
+        });
+    }
+    
+    if (closeCreditsModalButton && creditsModal) {
+        closeCreditsModalButton.addEventListener('click', () => {
             creditsModal.classList.add('hidden');
-        }
-    });
-
-    // Gestisci l'acquisto di crediti
-    buyCreditsBtn.addEventListener('click', () => {
-        // Implementiamo l'acquisto di crediti con opzioni
-        const amount = 5; // Default amount
-        buyCredits(amount);
-        creditsModal.classList.add('hidden');
-    });
-
-    // Funzione per aggiornare il contenuto del modal
+        });
+    }
+    
+    // Chiudi il modal quando si fa clic all'esterno
+    if (creditsModal) {
+        creditsModal.addEventListener('click', (e) => {
+            if (e.target === creditsModal) {
+                creditsModal.classList.add('hidden');
+            }
+        });
+    }
+    
     function updateCreditsModal() {
-        // Aggiorna il numero di crediti nel modal
-        modalCredits.textContent = AppState.user.credits;
-
-        // Recupera lo storico delle transazioni
-        const transactions = AppState.user.creditTransactions || [];
-        
-        // Aggiorna lo storico nel modal
-        creditsHistory.innerHTML = transactions.length > 0 
-            ? transactions.map(transaction => `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
-                    <div>
-                        <p class="text-sm text-gray-900 dark:text-white">${transaction.description}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">${new Date(transaction.date).toLocaleDateString('it-IT')}</p>
-                    </div>
-                    <span class="text-sm ${transaction.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
-                        ${transaction.amount > 0 ? '+' : ''}${transaction.amount}
-                    </span>
-                </div>
-            `).join('')
-            : '<p class="text-sm text-gray-500 dark:text-gray-400">Nessuna transazione trovata</p>';
+        if (typeof AppState !== 'undefined') {
+            const modalCredits = document.getElementById('modal-credits');
+            const virtualMoney = document.getElementById('virtual-money');
+            
+            if (modalCredits) {
+                modalCredits.textContent = AppState.getCredits();
+            }
+            
+            if (virtualMoney) {
+                virtualMoney.textContent = `€${AppState.getVirtualMoney()}`;
+            }
+            
+            // Aggiorna lo storico delle transazioni
+            updateTransactionHistory();
+        }
     }
 }
 

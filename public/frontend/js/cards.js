@@ -1,5 +1,6 @@
 // Gestione delle carte dell'utente
-let userCards = [];
+// Rimuovo la dichiarazione di userCards che causa il conflitto con dashboard.js
+// Useremo la variabile userCards dichiarata in dashboard.js
 
 // Funzione per caricare le carte dell'utente
 function loadUserCards() {

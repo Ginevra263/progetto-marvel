@@ -31,8 +31,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-storage.js"></script>
     <!-- Firebase Configuration -->
     <script src="js/firebase-config.js" type="module"></script>
-    <script src="js/dashboard.js" type="module"></script>
-    <script src="js/cards.js"></script>
+    <!-- Load state.js first since other scripts depend on it -->
+    <script src="js/state.js"></script>
     <script src="js/ui-settings.js"></script>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
@@ -66,14 +66,14 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <!-- Crediti -->
-                    <button id="credits-button" class="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity">
-                        <span class="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200">
+                    <div class="flex-shrink-0">
+                        <span class="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 cursor-pointer" id="credits-button">
                             <svg class="-ml-1 mr-1.5 h-2 w-2 text-primary-400" fill="currentColor" viewBox="0 0 8 8">
                                 <circle cx="4" cy="4" r="3" />
                             </svg>
                             Crediti: <span id="user-credits" class="ml-1">10</span>
                         </span>
-                    </button>
+                    </div>
                     <!-- Theme Toggle Button -->
                     <button onclick="toggleTheme()" class="p-2 text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-500">
                         <svg class="h-6 w-6 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -115,25 +115,151 @@
     <!-- Credits Modal -->
     <div id="credits-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
-            <div class="mt-3 text-center">
-                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">I Tuoi Crediti</h3>
+            <div class="mt-3">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white text-center">I Tuoi Crediti</h3>
                 <div class="mt-2 px-7 py-3">
-                    <div class="text-4xl font-bold text-primary-600 dark:text-primary-400" id="modal-credits">0</div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Crediti disponibili</p>
+                    <div class="text-4xl font-bold text-primary-600 dark:text-primary-400 text-center" id="modal-credits">0</div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">Crediti disponibili</p>
+                    <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">Il tuo portafoglio</p>
+                        <p class="text-2xl font-bold text-green-600 dark:text-green-400" id="virtual-money">€100</p>
+                    </div>
                 </div>
-                <div class="mt-4 space-y-4">
-                    <div class="text-left">
+                <div class="mt-4">
+                    <div class="text-center">
+                        <button id="open-purchase-btn" class="w-full inline-flex justify-center items-center px-4 py-3 text-base font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
+                            <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Acquista Crediti
+                        </button>
+                    </div>
+                    <div class="text-left mt-6">
                         <h4 class="text-sm font-medium text-gray-900 dark:text-white">Storico Transazioni</h4>
                         <div id="credits-history" class="mt-2 space-y-2 max-h-48 overflow-y-auto">
                             <!-- Le transazioni verranno inserite qui dinamicamente -->
                         </div>
                     </div>
-                    <div class="flex justify-center space-x-4 mt-6">
-                        <button id="buy-credits-btn" class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
-                            Acquista Crediti
-                        </button>
+                    <div class="flex justify-center mt-6">
                         <button id="close-credits-modal" class="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
                             Chiudi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchase Credits Modal -->
+    <div id="purchase-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-[480px] shadow-lg rounded-md bg-white dark:bg-gray-800">
+            <div class="mt-3">
+                <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-xl leading-6 font-bold text-gray-900 dark:text-white">Acquista Crediti</h3>
+                    <button id="close-purchase-modal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mt-4">
+                    <p class="text-gray-600 dark:text-gray-400 mb-4">Seleziona il pacchetto di crediti che desideri acquistare:</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all cursor-pointer purchase-option" data-amount="5" data-cost="10">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center text-primary-600 dark:text-primary-400">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-lg font-semibold text-gray-900 dark:text-white">Starter</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">5 crediti</p>
+                                    </div>
+                                </div>
+                                <span class="text-lg font-bold text-primary-600 dark:text-primary-400">€10</span>
+                            </div>
+                        </div>
+                        
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all cursor-pointer purchase-option" data-amount="10" data-cost="18">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center text-primary-600 dark:text-primary-400">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-lg font-semibold text-gray-900 dark:text-white">Standard</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">10 crediti</p>
+                                    </div>
+                                </div>
+                                <span class="text-lg font-bold text-primary-600 dark:text-primary-400">€18</span>
+                            </div>
+                        </div>
+                        
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all cursor-pointer purchase-option" data-amount="20" data-cost="35">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center text-primary-600 dark:text-primary-400">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-lg font-semibold text-gray-900 dark:text-white">Premium</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">20 crediti</p>
+                                    </div>
+                                </div>
+                                <span class="text-lg font-bold text-primary-600 dark:text-primary-400">€35</span>
+                            </div>
+                        </div>
+                        
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all cursor-pointer purchase-option" data-amount="50" data-cost="80">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center text-primary-600 dark:text-primary-400">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-lg font-semibold text-gray-900 dark:text-white">Ultimate</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">50 crediti</p>
+                                    </div>
+                                </div>
+                                <span class="text-lg font-bold text-primary-600 dark:text-primary-400">€80</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Crediti selezionati:</p>
+                                <p class="text-lg font-semibold text-gray-900 dark:text-white"><span id="selected-amount">0</span> crediti</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Costo totale:</p>
+                                <p class="text-lg font-semibold text-gray-900 dark:text-white">€<span id="selected-cost">0</span></p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Il tuo portafoglio:</p>
+                            <p class="text-lg font-semibold text-green-600 dark:text-green-400">€<span id="purchase-virtual-money">100</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button id="cancel-purchase" class="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
+                            Annulla
+                        </button>
+                        <button id="confirm-purchase" class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500" disabled>
+                            Conferma Acquisto
                         </button>
                     </div>
                 </div>
@@ -342,81 +468,10 @@
         </div>
     </main>
 
-    <script src="js/state.js"></script>
-    <script>
-        // Funzione per formattare il tempo trascorso
-        function timeAgo(date) {
-            const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-            
-            let interval = seconds / 31536000;
-            if (interval > 1) return Math.floor(interval) + " anni fa";
-            
-            interval = seconds / 2592000;
-            if (interval > 1) return Math.floor(interval) + " mesi fa";
-            
-            interval = seconds / 86400;
-            if (interval > 1) return Math.floor(interval) + " giorni fa";
-            
-            interval = seconds / 3600;
-            if (interval > 1) return Math.floor(interval) + " ore fa";
-            
-            interval = seconds / 60;
-            if (interval > 1) return Math.floor(interval) + " minuti fa";
-            
-            return "pochi secondi fa";
-        }
-
-        // Funzione per aggiornare le statistiche della dashboard
-        function updateDashboardStats() {
-            // Aggiorna i contatori base
-            document.getElementById('user-credits').textContent = AppState.user.credits;
-            document.getElementById('total-packs').textContent = AppState.user.totalPacks;
-            document.getElementById('total-cards').textContent = AppState.user.totalCards;
-            document.getElementById('duplicate-cards').textContent = AppState.user.duplicateCards;
-            document.getElementById('active-trades').textContent = AppState.user.activeTrades;
-
-            // Aggiorna il progresso dell'album
-            const totalHeroes = 10; // Numero totale di eroi disponibili
-            const collectedHeroes = AppState.album.cards ? AppState.album.cards.size : 0;
-            const progressPercentage = Math.round((collectedHeroes / totalHeroes) * 100);
-            
-            // Aggiorna la barra di progresso
-            document.getElementById('progress-percentage').textContent = `${progressPercentage}%`;
-            document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
-            
-            // Calcola e aggiorna le figurine mancanti
-            const missingCards = totalHeroes - collectedHeroes;
-            document.getElementById('missing-cards').textContent = missingCards;
-            
-            // Calcola il totale delle figurine doppie
-            let duplicateTotal = 0;
-            if (AppState.album.duplicates) {
-                duplicateTotal = Object.values(AppState.album.duplicates).reduce((sum, count) => sum + count, 0);
-            }
-            document.getElementById('duplicate-total').textContent = duplicateTotal;
-
-            // Aggiorna l'ultima attività di apertura pacchetto
-            if (AppState.lastPackOpening) {
-                document.getElementById('last-pack-opening').classList.remove('hidden');
-                document.getElementById('no-activity').classList.add('hidden');
-                document.getElementById('last-pack-time').textContent = timeAgo(AppState.lastPackOpening.timestamp);
-                document.getElementById('last-pack-cards').textContent = `Trovati ${AppState.lastPackOpening.cards.length} nuovi super eroi`;
-            } else {
-                document.getElementById('last-pack-opening').classList.add('hidden');
-                document.getElementById('no-activity').classList.remove('hidden');
-            }
-        }
-
-        // Inizializzazione
-        document.addEventListener('DOMContentLoaded', () => {
-            updateDashboardStats();
-
-            // Sottoscrivi agli aggiornamenti
-            AppState.subscribe('credits', updateDashboardStats);
-            AppState.subscribe('packs', updateDashboardStats);
-            AppState.subscribe('album', updateDashboardStats);
-            AppState.subscribe('lastPackOpening', updateDashboardStats);
-        });
-    </script>
+    <!-- Load scripts in the correct order -->
+    <script src="js/profile-image.js"></script>
+    <script src="js/credits-manager.js"></script>
+    <script src="js/cards.js"></script>
+    <script src="js/dashboard.js" type="module"></script>
 </body>
 </html>
