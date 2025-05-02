@@ -4,7 +4,7 @@ function registerUser(event) {
     const username = document.getElementById('username').value;
     const password = document.getElementById('register-password').value;
     const email = document.getElementById('email').value;
-    const superhero = document.getElementById('superhero').value;
+    const character = document.getElementById('character').value;
 
     // Validazione lato client
     if (!username || !email || !password) {
@@ -12,7 +12,7 @@ function registerUser(event) {
         return;
     }
 
-    const data = { username, email, password, superhero };
+    const data = { username, email, password, character };
 
     fetch('http://localhost:3000/register', {
         method: 'POST',

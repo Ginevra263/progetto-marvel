@@ -1,15 +1,11 @@
-const PUBLIC_KEY="af7b1b70227c7699019dc5b3310f327d";
-const PRIVATE_KEY="1389efde3a9d301441b69d6a53c1ae95e8b63520"; 
-const timestamp = new Date().getTime();
-const hash = CryptoJS.MD5(timestamp + PRIVATE_KEY + PUBLIC_KEY).toString();
-const url = `https://gateway.marvel.com/v1/public/characters?ts=${timestamp}&apikey=${PUBLIC_KEY}&hash=${hash}&limit=100&orderBy=name`;
-let allHeroes = []; 
+const url = "https://hp-api.onrender.com/api/characters"; 
+let allCharacters = []; 
 // Simulazione del database dei pacchetti
 let userPacks = [
     {
         id: 1,
         type: "Standard",
-        cards: ["Spider-Man", "Iron Man", "Thor", "Black Widow", "Hulk"],
+        cards: ["Harry Potter", "Hermione Granger", "Ron Weasley", "Albus Dumbledore", "Severus Snape"],
         opened: false,
         purchaseDate: "2024-03-15",
         cost: 1
@@ -17,28 +13,90 @@ let userPacks = [
     {
         id: 2,
         type: "Premium",
-        cards: ["Doctor Strange", "Black Panther", "Captain America", "Wolverine", "Deadpool"],
+        cards: ["Draco Malfoy", "Voldemort", "Sirius Black", "Luna Lovegood", "Rubeus Hagrid"],
         opened: true,
         purchaseDate: "2024-03-14",
         cost: 2
     }
 ];
 
+// Modifica la fetch con un controllo più robusto
+// Inizializza AppState se non esiste
+if (!window.AppState) {
+    window.AppState = {
+        packs: userPacks,
+        album: {
+            cards: new Set(),
+            duplicates: {}
+        },
+        user: {
+            credits: 50,
+            totalPacks: userPacks.length,
+            totalCards: 0,
+            duplicateCards: 0
+        },
+        subscribers: {},
+        subscribe: function(event, callback) {
+            if (!this.subscribers[event]) {
+                this.subscribers[event] = [];
+            }
+            this.subscribers[event].push(callback);
+        },
+        notify: function(event) {
+            if (this.subscribers && this.subscribers[event]) {
+                this.subscribers[event].forEach(callback => callback());
+            }
+        }
+    };
+}
+
+// Carica i personaggi di Harry Potter
 fetch(url)
     .then(response => {
         if (!response.ok) throw new Error('Errore nella risposta del server');
         return response.json();
     })
-.then(data => {
-        allHeroes = data.data.results.map(hero => ({
-            id: hero.id,
-            name: hero.name,
-            thumbnail: `${hero.thumbnail.path}.${hero.thumbnail.extension}`
-        }));
-        console.log("allhero",allHeroes);
+    .then(data => {
+        console.log("HP API data:", data);
+        // Verifica che data sia un array
+        if (Array.isArray(data)) {
+            allCharacters = data.map(character => ({
+                id: character.id || character.name.replace(/\s+/g, '').toLowerCase(),
+                name: character.name,
+                thumbnail: character.image || 'images/default-card.png'
+            }));
+            console.log("Personaggi Harry Potter caricati:", allCharacters);
+            
+            // Aggiorna le statistiche dopo il caricamento dei personaggi
+            updateAllStats();
+            
+            // Mostra i pacchetti iniziali
+            displayPacks(AppState.packs);
+        } else {
+            console.error("Formato dati API non valido:", data);
+        }
     })
     .catch(error => {
         console.error('Errore nel caricamento dei dati:', error);
+        // In caso di errore, carica alcuni personaggi predefiniti
+        allCharacters = [
+            { id: "harrypotter", name: "Harry Potter", thumbnail: "images/default-card.png" },
+            { id: "hermionegranger", name: "Hermione Granger", thumbnail: "images/default-card.png" },
+            { id: "ronweasley", name: "Ron Weasley", thumbnail: "images/default-card.png" },
+            { id: "albusdumbledore", name: "Albus Dumbledore", thumbnail: "images/default-card.png" },
+            { id: "severussnape", name: "Severus Snape", thumbnail: "images/default-card.png" },
+            { id: "dracomalfoy", name: "Draco Malfoy", thumbnail: "images/default-card.png" },
+            { id: "voldemort", name: "Voldemort", thumbnail: "images/default-card.png" },
+            { id: "siriusblack", name: "Sirius Black", thumbnail: "images/default-card.png" },
+            { id: "lunalovegood", name: "Luna Lovegood", thumbnail: "images/default-card.png" },
+            { id: "rubeushagrid", name: "Rubeus Hagrid", thumbnail: "images/default-card.png" }
+        ];
+        
+        // Aggiorna le statistiche con i personaggi predefiniti
+        updateAllStats();
+        
+        // Mostra i pacchetti iniziali
+        displayPacks(AppState.packs);
     });
 
 // Funzione per creare la card di un pacchetto
@@ -74,9 +132,19 @@ function createPackCard(pack) {
     `;
 }
 
-// Funzione per visualizzare tutti i pacchetti
+// Funzione per visualizzare tutti i pacchetti - versione migliorata
 function displayPacks(packs) {
     const container = document.getElementById('packs-container');
+    if (!container) {
+        console.error('Container pacchetti non trovato');
+        return;
+    }
+    
+    if (!packs || !Array.isArray(packs) || packs.length === 0) {
+        container.innerHTML = '<div class="col-span-full text-center py-8"><p class="text-gray-500 dark:text-gray-400">Non hai ancora pacchetti.</p></div>';
+        return;
+    }
+    
     container.innerHTML = packs.map(pack => createPackCard(pack)).join('');
 }
 
@@ -96,25 +164,43 @@ function filterPacks(filter) {
     displayPacks(filteredPacks);
 }
 
-// Funzione per visualizzare le carte di un pacchetto
+// Funzione per visualizzare le carte di un pacchetto - versione migliorata
 function viewPack(packId) {
+    if (!AppState.packs) {
+        console.error('AppState.packs non è definito');
+        showError('Errore nel caricamento dei pacchetti');
+        return;
+    }
+    
     const pack = AppState.packs.find(p => p.id === packId);
-    if (!pack || !pack.opened) return;
+    if (!pack || !pack.opened) {
+        showError('Pacchetto non trovato o non ancora aperto');
+        return;
+    }
 
     const modal = document.getElementById('pack-opening-modal');
     const cardsContainer = document.getElementById('cards-container');
     
+    if (!modal || !cardsContainer) {
+        console.error('Modal o cardsContainer non trovati');
+        showError('Errore nell\'interfaccia utente');
+        return;
+    }
+    
     cardsContainer.innerHTML = pack.cards.map(cardName => {
-        // Trova l'eroe corrispondente per ottenere l'immagine
-        const hero = allHeroes.find(h => h.name === cardName);
-        const heroImage = hero ? hero.thumbnail : '';
+        // Trova il personaggio corrispondente per ottenere l'immagine
+        const character = allCharacters.find(c => c.name === cardName);
+        const characterImage = character ? character.thumbnail : 'images/default-card.png';
+        
+        const isNew = AppState.album && AppState.album.duplicates ? 
+            !AppState.album.duplicates[cardName] || AppState.album.duplicates[cardName] === 0 : true;
         
         return `
         <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
-            ${heroImage ? `<img src="${heroImage}" alt="${cardName}" class="w-full h-48 object-cover mb-3 rounded">` : ''}
+            <img src="${characterImage}" alt="${cardName}" class="w-full h-48 object-cover mb-3 rounded">
             <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${cardName}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                ${AppState.album.duplicates[cardName] ? `Doppioni: ${AppState.album.duplicates[cardName]}` : 'Nuova!'}
+                ${isNew ? 'Nuova!' : `Doppioni: ${AppState.album.duplicates[cardName]}`}
             </p>
         </div>
         `;
@@ -144,12 +230,12 @@ function openPack(packId) {
     const cardsToSave = [];
     
     pack.cards.forEach(cardName => {
-        const hero = allHeroes.find(h => h.name === cardName);
-        if (hero) {
+        const character = allCharacters.find(c => c.name === cardName);
+        if (character) {
             cardsToSave.push({
-                id: hero.id.toString(),
+                id: character.id.toString(),
                 name: cardName,
-                thumbnail: hero.thumbnail
+                thumbnail: character.thumbnail
             });
         }
         
@@ -194,13 +280,13 @@ function openPack(packId) {
         
         // Mostra le carte nel modal
         cardsContainer.innerHTML = pack.cards.map(cardName => {
-            // Trova l'eroe corrispondente per ottenere l'immagine
-            const hero = allHeroes.find(h => h.name === cardName);
-            const heroImage = hero ? hero.thumbnail : '';
+            // Trova il personaggio corrispondente per ottenere l'immagine
+            const character = allCharacters.find(c => c.name === cardName);
+            const characterImage = character ? character.thumbnail : 'images/default-card.png';
             
             return `
             <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
-                ${heroImage ? `<img src="${heroImage}" alt="${cardName}" class="w-full h-48 object-cover mb-3 rounded">` : ''}
+                <img src="${characterImage}" alt="${cardName}" class="w-full h-48 object-cover mb-3 rounded">
                 <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${cardName}</h4>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     ${AppState.album.duplicates[cardName] ? `Doppioni: ${AppState.album.duplicates[cardName]}` : 'Nuova!'}
@@ -222,26 +308,49 @@ function openPack(packId) {
     });
 }
 
-// Funzione per generare carte casuali
+// Funzione per generare carte casuali - versione migliorata
 function generateRandomCards(count) {
+    if (!allCharacters || allCharacters.length === 0) {
+        console.error('Nessun personaggio disponibile');
+        showError('Errore nel caricamento dei personaggi');
+        return [];
+    }
+    
+    if (!AppState.album) {
+        AppState.album = {
+            cards: new Set(),
+            duplicates: {}
+        };
+    }
+    
     const cards = [];
     for (let i = 0; i < count; i++) {
-        const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)];
-        cards.push({
-            name: randomHero.name,
-            isNew: !AppState.album.cards.has(randomHero.name)
-        });
-        
-        // Aggiorna l'album
-        AppState.album.cards.add(randomHero.name);
-        if (!AppState.album.duplicates[randomHero.name]) {
-            AppState.album.duplicates[randomHero.name] = 0;
-        }
-        if (!cards[cards.length - 1].isNew) {
-            AppState.album.duplicates[randomHero.name]++;
+        const randomIndex = Math.floor(Math.random() * allCharacters.length);
+        if (randomIndex >= 0 && randomIndex < allCharacters.length) {
+            const randomCharacter = allCharacters[randomIndex];
+            const isNew = !AppState.album.cards.has(randomCharacter.name);
+            
+            cards.push({
+                name: randomCharacter.name,
+                isNew: isNew,
+                thumbnail: randomCharacter.thumbnail
+            });
+            
+            // Aggiorna l'album
+            AppState.album.cards.add(randomCharacter.name);
+            if (!AppState.album.duplicates[randomCharacter.name]) {
+                AppState.album.duplicates[randomCharacter.name] = 0;
+            }
+            if (!isNew) {
+                AppState.album.duplicates[randomCharacter.name]++;
+            }
         }
     }
-    AppState.notify('album');
+    
+    if (AppState.notify) {
+        AppState.notify('album');
+    }
+    
     return cards;
 }
 
@@ -250,17 +359,26 @@ function showPackOpeningModal(cards) {
     const modal = document.getElementById('pack-opening-modal');
     const cardsContainer = document.getElementById('cards-container');
     
+    if (!modal || !cardsContainer) {
+        console.error('Modal o container delle carte non trovato');
+        return;
+    }
+    
     cardsContainer.innerHTML = cards.map(card => {
-        // Trova l'eroe corrispondente per ottenere l'immagine
-        const hero = allHeroes.find(h => h.name === card.name);
-        const heroImage = hero ? hero.thumbnail : '';
+        // Assicurati che card.name esista
+        if (!card || !card.name) {
+            return '<div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">Carta non valida</div>';
+        }
+        
+        // Trova il personaggio corrispondente per ottenere l'immagine
+        const characterImage = card.thumbnail || 'images/default-card.png';
         
         return `
         <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg text-center">
-            ${heroImage ? `<img src="${heroImage}" alt="${card.name}" class="w-full h-48 object-cover mb-3 rounded">` : ''}
+            <img src="${characterImage}" alt="${card.name}" class="w-full h-48 object-cover mb-3 rounded">
             <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${card.name}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                ${card.isNew ? 'Nuova!' : `Doppione (${AppState.album.duplicates[card.name]})`}
+                ${card.isNew ? 'Nuova!' : `Doppione (${AppState.album.duplicates[card.name] || 1})`}
             </p>
         </div>
         `;
@@ -269,102 +387,67 @@ function showPackOpeningModal(cards) {
     modal.classList.remove('hidden');
 }
 
-// Funzione per aprire un nuovo pacchetto
+// Funzione per aprire un nuovo pacchetto - versione migliorata
 async function openNewPack() {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        alert('Devi effettuare il login per aprire un pacchetto');
-        return;
-    }
-
     try {
-        // Verifica i crediti dell'utente
-        const response = await fetch('http://localhost:3000/api/user/data', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error('Errore nel recupero dei dati utente');
+        // Mostra un indicatore di caricamento
+        showSuccessMessage('Preparazione apertura pacchetto...');
+        
+        // Genera 5 carte casuali
+        const generatedCards = generateRandomCards(5);
+        
+        if (generatedCards.length === 0) {
+            throw new Error('Impossibile generare carte casuali');
         }
-
-        const userData = await response.json();
-        const credits = userData.credits;
-
-        if (credits < 1) {
-            // Mostra il modal per crediti insufficienti
-            showInsufficientCreditsModal();
-            return;
-        }
-
-        // Invia la richiesta per aprire un nuovo pacchetto
-        const buyResponse = await fetch('http://localhost:3000/api/cards/buy-pack', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!buyResponse.ok) {
-            throw new Error('Errore durante l\'acquisto del pacchetto');
-        }
-
-        const data = await buyResponse.json();
-
-        if (!data.success) {
-            throw new Error(data.message || 'Errore durante l\'acquisto del pacchetto');
-        }
-
-        // Crea un nuovo pacchetto con le carte ricevute dal server
+        
+        // Crea un nuovo pacchetto
         const newPack = {
             id: Date.now(),
             type: "Standard",
-            cards: data.newCards.map(card => card.name),
+            cards: generatedCards.map(card => card.name),
             opened: true,
             purchaseDate: new Date().toISOString().split('T')[0],
             openedDate: new Date().toISOString().split('T')[0],
             cost: 1
         };
-
+        
         // Aggiorna l'AppState
         if (!AppState.packs) {
             AppState.packs = [];
         }
         AppState.packs.unshift(newPack);
-
-        // Aggiorna l'album con le nuove carte
-        data.newCards.forEach(card => {
-            if (AppState.album && AppState.album.cards) {
-                AppState.album.cards.add(card.name);
-            }
-        });
-
+        
         // Aggiorna le statistiche dell'utente
-        AppState.user.credits = data.credits;
-        AppState.user.totalCards = data.totalCards;
-        AppState.user.totalPacks++;
-
+        if (!AppState.user) {
+            AppState.user = { credits: 50, totalPacks: 0, totalCards: 0, duplicateCards: 0 };
+        }
+        AppState.user.credits = Math.max(0, AppState.user.credits - 1);
+        AppState.user.totalCards = (AppState.user.totalCards || 0) + generatedCards.length;
+        AppState.user.totalPacks = (AppState.user.totalPacks || 0) + 1;
+        
+        // Aggiorna duplicati
+        AppState.user.duplicateCards = (AppState.user.duplicateCards || 0) + 
+            generatedCards.filter(card => !card.isNew).length;
+        
         // Notifica gli aggiornamenti
         if (AppState.notify) {
             AppState.notify('user');
             AppState.notify('album');
             AppState.notify('packs');
         }
-
+        
+        // Aggiorna i crediti visualizzati
+        const creditsElement = document.getElementById('user-credits');
+        if (creditsElement) {
+            creditsElement.textContent = AppState.user.credits;
+        }
+        
         // Mostra le carte nel modal
-        const cards = data.newCards.map(card => ({
-            name: card.name,
-            isNew: true,
-            thumbnail: card.thumbnail
-        }));
-
-        showPackOpeningModal(cards);
-
+        showPackOpeningModal(generatedCards);
+        
     } catch (error) {
         console.error('Errore:', error);
-        alert('Si è verificato un errore durante l\'apertura del pacchetto: ' + error.message);
+        showError('Si è verificato un errore durante l\'apertura del pacchetto: ' + error.message);
     }
 }
 
@@ -503,67 +586,46 @@ function updateAllStats() {
 
     // Calcola e aggiorna la percentuale di completamento
     const completionElement = document.getElementById('completion-percentage');
-    if (completionElement) {
-        const totalUniqueHeroes = 10; // Il numero totale di eroi disponibili
-        const completionPercentage = Math.round((AppState.album.cards.size / totalUniqueHeroes) * 100);
+    if (completionElement && allCharacters.length > 0) {
+        const totalUniqueCharacters = allCharacters.length; // Il numero totale di personaggi disponibili
+        const completionPercentage = Math.round((AppState.album.cards.size / totalUniqueCharacters) * 100);
         completionElement.textContent = `${completionPercentage}%`;
     }
 }
 
-// Inizializzazione
+// Funzione per mostrare un messaggio di errore
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 3000);
+}
+
+// Inizializzazione - versione migliorata
 document.addEventListener('DOMContentLoaded', () => {
-    // Inizializza l'AppState se necessario
-    if (!AppState.album) {
-        AppState.album = {
-            cards: new Set(),
-            duplicates: {}
-        };
-    }
-    if (!AppState.user) {
-        AppState.user = {
-            credits: 50,
-            totalPacks: 0,
-            totalCards: 0,
-            duplicateCards: 0,
-            cards: [] // Inizializza l'array delle carte dell'utente
-        };
+    // Inizializza l'UI con i dati già caricati (se presenti)
+    if (allCharacters && allCharacters.length > 0) {
+        updateAllStats();
+        displayPacks(AppState.packs);
     }
     
-    // Assicurati che l'attributo cards esista
-    if (!AppState.user.cards) {
-        AppState.user.cards = [];
+    // Aggiungi event listener per il modal
+    const modal = document.getElementById('pack-opening-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closePackModal();
+            }
+        });
     }
-
-    // Aggiorna i contatori
-    document.getElementById('user-credits').textContent = AppState.user.credits;
-    document.getElementById('total-packs').textContent = AppState.user.totalPacks;
-    document.getElementById('total-cards').textContent = AppState.user.totalCards;
-    document.getElementById('duplicate-cards').textContent = AppState.user.duplicateCards;
-
-    // Calcola e aggiorna la percentuale di completamento
-    const totalHeroes = allHeroes.length;
-    const collectedHeroes = AppState.album.cards.size;
-    const progressPercentage = Math.round((collectedHeroes / totalHeroes) * 100);
-    document.getElementById('completion-percentage').textContent = `${progressPercentage}%`;
-
-    // Mostra i pacchetti iniziali
-    displayPacks(AppState.packs);
-
-    // Aggiorna tutte le statistiche
-    updateAllStats();
-
-    // Sottoscrivi agli aggiornamenti
-    AppState.subscribe('packs', () => {
-        displayPacks(AppState.packs);
-        updateAllStats();
+    
+    // Inizializza i filtri dei pacchetti
+    const filterButtons = document.querySelectorAll('button[onclick^="filterPacks"]');
+    filterButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const filter = e.target.getAttribute('onclick').match(/'([^']+)'/)[1];
+            filterPacks(filter);
+        });
     });
-    AppState.subscribe('credits', updateAllStats);
-    AppState.subscribe('album', updateAllStats);
-});
-
-// Chiudi il modal quando si clicca fuori
-document.getElementById('pack-opening-modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
-        closePackModal();
-    }
 }); 

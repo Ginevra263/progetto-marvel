@@ -21,8 +21,7 @@ const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://ginevramaiorana2003:La
 const PUBLIC_KEY= process.env.PUBLIC_KEY || 'https://marvel.com';
 const PRIVATE_KEY= process.env.PRIVATE_KEY || 'https://marvel.com';
 const JWT_SECRET = process.env.JWT_SECRET || 'f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7';
-const MARVEL_PUBLIC_KEY = process.env.MARVEL_PUBLIC_KEY || 'af7b1b70227c7699019dc5b3310f327d';
-const MARVEL_PRIVATE_KEY = process.env.MARVEL_PRIVATE_KEY || '1389efde3a9d301441b69d6a53c1ae95e8b63520';
+const HP_API_URL = process.env.HP_API_URL || 'https://hp-api.onrender.com/api/characters';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -112,17 +111,17 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    superhero: { type: String },  // Campo aggiunto per l'eroe preferito
+    wizardCharacter: { type: String },  // Campo modificato per il personaggio preferito
     credits: { type: Number, default: 0 },
     cards: [{
         id: String,
         name: String,
-        thumbnail: String,
+        image: String,
         count: { type: Number, default: 1 }
     }],
     profile_image: { 
         type: String, 
-        default: `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/marvel%2Fuser%2Fdefault-avatar.png?alt=media` 
+        default: `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/harry-potter%2Fuser%2Fdefault-avatar.png?alt=media` 
     }
 });
 
@@ -243,7 +242,7 @@ const upload = multer({
 // Registrazione utente
 app.post('/register', async (req, res) => {
     try {
-        const { username, email, password, superhero } = req.body;
+        const { username, email, password, wizardCharacter } = req.body;
         
         // Validazione
         if (!username || !email || !password) {
@@ -265,13 +264,13 @@ app.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Crea un nuovo utente con l'immagine di profilo predefinita
-        const defaultProfileImage = `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/marvel%2Fuser%2Fdefault-avatar.png?alt=media`;
+        const defaultProfileImage = `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/harry-potter%2Fuser%2Fdefault-avatar.png?alt=media`;
         
         const user = new User({
             username,
             email,
             password: hashedPassword,
-            superhero,
+            wizardCharacter,
             credits: 10, // Crediti iniziali gratuiti
             profile_image: defaultProfileImage
         });
@@ -394,92 +393,143 @@ app.post('/api/credits/buy', authenticateToken, async (req, res) => {
     }
 });
 
-// Acquisto pacchetto di figurine
-app.post('/api/cards/buy-pack', authenticateToken, async (req, res) => {
+// Ottiene i personaggi dall'API di Harry Potter
+app.get('/api/hp-characters', async (req, res) => {
     try {
-        // Usa una sessione di MongoDB per garantire l'atomicità della transazione
-        const session = await mongoose.startSession();
-        session.startTransaction();
-
-        try {
-            const user = await User.findById(req.user._id).session(session);
-            
-            if (!user) {
-                throw new Error('Utente non trovato');
-            }
-            
-            if (user.credits < 1) {
-                throw new Error('Crediti insufficienti');
-            }
-            
-            // Genera timestamp e hash per Marvel API
-            const ts = new Date().getTime();
-            const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
-            
-            // Ottieni eroi dalla Marvel API
-            const response = await axios.get(`https://gateway.marvel.com/v1/public/characters`, {
-                params: {
-                    ts,
-                    apikey: MARVEL_PUBLIC_KEY,
-                    hash,
-                    limit: 100
-                }
-            });
-            
-            const allHeroes = response.data.data.results;
-            const newCards = [];
-            
-            // Seleziona 5 eroi casuali
-            for (let i = 0; i < 5; i++) {
-                const randomHero = allHeroes[Math.floor(Math.random() * allHeroes.length)];
-                const card = {
-                    id: randomHero.id.toString(),
-                    name: randomHero.name,
-                    thumbnail: `${randomHero.thumbnail.path}.${randomHero.thumbnail.extension}`
-                };
-                
-                // Aggiungi o aggiorna la carta nell'album dell'utente
-                const existingCardIndex = user.cards.findIndex(c => c.id === card.id);
-                if (existingCardIndex !== -1) {
-                    user.cards[existingCardIndex].count++;
-                    console.log(`Carta esistente aggiornata: ${card.name}, nuovo conteggio: ${user.cards[existingCardIndex].count}`);
-                } else {
-                    user.cards.push({ ...card, count: 1 });
-                    console.log(`Nuova carta aggiunta: ${card.name}`);
-                }
-                
-                newCards.push(card);
-            }
-            
-            // Sottrai un credito
-            user.credits--;
-            console.log(`Crediti rimanenti: ${user.credits}`);
-            
-            // Salva le modifiche
-            await user.save({ session });
-            await session.commitTransaction();
-            
-            // Invia la risposta
-            res.json({
-                success: true,
-                message: 'Pacchetto acquistato con successo',
-                newCards,
-                credits: user.credits,
-                totalCards: user.cards.reduce((acc, card) => acc + card.count, 0)
-            });
-            
-        } catch (error) {
-            await session.abortTransaction();
-            throw error;
-        } finally {
-            session.endSession();
-        }
+        const response = await axios.get(HP_API_URL);
+        res.json(response.data);
     } catch (error) {
-        console.error('Errore durante l\'acquisto del pacchetto:', error);
-        res.status(400).json({
-            success: false,
-            message: error.message || 'Errore durante l\'acquisto del pacchetto'
+        console.error('Errore nel recupero dei personaggi di Harry Potter:', error);
+        res.status(500).json({ success: false, message: 'Errore nel recupero dei personaggi', error: error.message });
+    }
+});
+
+// Route per l'acquisto di nuovi pacchetti di carte (aggiornato per Harry Potter)
+app.post('/api/buy-packs', authenticateToken, async (req, res) => {
+    const { packType, quantity = 1 } = req.body;
+    const userId = req.user.userId;
+
+    try {
+        // Recupera le informazioni sull'utente
+        const user = await User.findById(userId);
+
+        // Controlla i crediti dell'utente
+        const packPrice = packType === 'standard' ? 10 : (packType === 'premium' ? 25 : 50);
+        const totalCost = packPrice * quantity;
+
+        if (user.credits < totalCost) {
+            return res.status(400).json({ success: false, message: 'Crediti insufficienti' });
+        }
+
+        // Sottrai i crediti
+        user.credits -= totalCost;
+
+        // Ottieni i personaggi dall'API di Harry Potter
+        const response = await axios.get(HP_API_URL);
+        const characters = response.data;
+
+        // Array per memorizzare le carte ottenute
+        const newCards = [];
+        const cardsPerPack = packType === 'standard' ? 5 : (packType === 'premium' ? 7 : 10);
+
+        // Genera pacchetti casuali di carte
+        for (let i = 0; i < quantity; i++) {
+            const packCards = [];
+
+            // La rarità dipende dal tipo di pacchetto
+            const legendaryChance = packType === 'standard' ? 0.05 : (packType === 'premium' ? 0.15 : 0.30);
+            const epicChance = packType === 'standard' ? 0.15 : (packType === 'premium' ? 0.30 : 0.40);
+            const rareChance = packType === 'standard' ? 0.30 : (packType === 'premium' ? 0.40 : 0.20);
+
+            // Carte speciali per pacchetto deluxe
+            const guaranteedLegendary = packType === 'deluxe';
+
+            // Generiamo il giusto numero di carte per il pacchetto
+            for (let j = 0; j < cardsPerPack; j++) {
+                let randomCharacter;
+                
+                // Per il pacchetto deluxe, garantire almeno una carta leggendaria
+                if (guaranteedLegendary && j === 0) {
+                    // Filtra solo personaggi principali come leggende (come Harry, Hermione, Ron, Dumbledore, ecc.)
+                    const legendaryCharacters = characters.filter(char => 
+                        ['Harry Potter', 'Hermione Granger', 'Ron Weasley', 'Albus Dumbledore', 
+                         'Severus Snape', 'Lord Voldemort', 'Sirius Black', 'Minerva McGonagall'].includes(char.name));
+                    randomCharacter = legendaryCharacters[Math.floor(Math.random() * legendaryCharacters.length)];
+                } else {
+                    // Altrimenti, usa la probabilità per determinare la rarità
+                    const randomValue = Math.random();
+                    
+                    if (randomValue < legendaryChance) {
+                        // Carta leggendaria - personaggi principali
+                        const legendaryCharacters = characters.filter(char => 
+                            ['Harry Potter', 'Hermione Granger', 'Ron Weasley', 'Albus Dumbledore', 
+                             'Severus Snape', 'Lord Voldemort', 'Sirius Black', 'Minerva McGonagall'].includes(char.name));
+                        randomCharacter = legendaryCharacters[Math.floor(Math.random() * legendaryCharacters.length)];
+                    } else if (randomValue < legendaryChance + epicChance) {
+                        // Carta epica - personaggi secondari importanti
+                        const epicCharacters = characters.filter(char => 
+                            ['Draco Malfoy', 'Luna Lovegood', 'Neville Longbottom', 'Ginny Weasley', 
+                             'Rubeus Hagrid', 'Remus Lupin', 'Nymphadora Tonks', 'Bellatrix Lestrange'].includes(char.name));
+                        randomCharacter = epicCharacters.length > 0 
+                            ? epicCharacters[Math.floor(Math.random() * epicCharacters.length)]
+                            : characters[Math.floor(Math.random() * characters.length)];
+                    } else if (randomValue < legendaryChance + epicChance + rareChance) {
+                        // Carta rara - personaggi della stessa casa di Hogwarts
+                        const houses = ['Gryffindor', 'Slytherin', 'Hufflepuff', 'Ravenclaw'];
+                        const randomHouse = houses[Math.floor(Math.random() * houses.length)];
+                        const houseCharacters = characters.filter(char => char.house === randomHouse);
+                        randomCharacter = houseCharacters.length > 0 
+                            ? houseCharacters[Math.floor(Math.random() * houseCharacters.length)]
+                            : characters[Math.floor(Math.random() * characters.length)];
+                    } else {
+                        // Carta comune - qualsiasi personaggio
+                        randomCharacter = characters[Math.floor(Math.random() * characters.length)];
+                    }
+                }
+
+                // Assicurati che randomCharacter non sia undefined
+                if (randomCharacter) {
+                    packCards.push({
+                        id: randomCharacter.id,
+                        name: randomCharacter.name,
+                        image: randomCharacter.image || "https://cdn.pixabay.com/photo/2016/03/31/19/58/avatar-1295429_960_720.png"
+                    });
+                }
+            }
+
+            newCards.push(...packCards);
+        }
+
+        // Aggiungi le nuove carte all'utente
+        for (const card of newCards) {
+            const existingCardIndex = user.cards.findIndex(c => c.id === card.id);
+            
+            if (existingCardIndex !== -1) {
+                // Incrementa il conteggio se la carta esiste già
+                user.cards[existingCardIndex].count += 1;
+            } else {
+                // Aggiungi la nuova carta con conteggio 1
+                user.cards.push({
+                    id: card.id,
+                    name: card.name,
+                    image: card.image,
+                    count: 1
+                });
+            }
+        }
+
+        // Salva le modifiche
+        await user.save();
+
+        res.json({ 
+            success: true, 
+            message: `Hai ottenuto ${newCards.length} nuove carte!`,
+            newCards,
+            remainingCredits: user.credits
         });
+    } catch (error) {
+        console.error('Errore nell\'acquisto dei pacchetti:', error);
+        res.status(500).json({ success: false, message: 'Errore nell\'elaborazione dell\'acquisto', error: error.message });
     }
 });
 
@@ -500,7 +550,7 @@ app.post('/api/trades/propose', authenticateToken, async (req, res) => {
             offeredCard: {
                 id: offeredCard.id,
                 name: offeredCard.name,
-                thumbnail: offeredCard.thumbnail
+                thumbnail: offeredCard.image
             },
             wantedCard: {
                 id: wantedCardId
@@ -555,7 +605,7 @@ app.post('/api/cards/save', authenticateToken, async (req, res) => {
                     user.cards.push({ 
                         id: card.id,
                         name: card.name,
-                        thumbnail: card.thumbnail || '',
+                        image: card.image || '',
                         count: 1 
                     });
                     console.log(`Nuova carta aggiunta: ${card.name}`);
@@ -648,7 +698,7 @@ app.post('/api/trades/accept/:tradeId', authenticateToken, async (req, res) => {
             offerer.cards.push({
                 id: trade.wantedCard.id,
                 name: trade.wantedCard.name,
-                thumbnail: trade.wantedCard.thumbnail,
+                image: trade.wantedCard.image,
                 count: 1
             });
         }
@@ -660,7 +710,7 @@ app.post('/api/trades/accept/:tradeId', authenticateToken, async (req, res) => {
             accepter.cards.push({
                 id: trade.offeredCard.id,
                 name: trade.offeredCard.name,
-                thumbnail: trade.offeredCard.thumbnail,
+                image: trade.offeredCard.image,
                 count: 1
             });
         }
@@ -671,118 +721,6 @@ app.post('/api/trades/accept/:tradeId', authenticateToken, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
-    }
-});
-
-// Marvel API endpoint
-app.get('/api/marvel', async (req, res) => {
-    try {
-        const ts = new Date().getTime();
-        const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
-        
-        const response = await axios.get('https://gateway.marvel.com/v1/public/characters', {
-            params: {
-                ts,
-                apikey: MARVEL_PUBLIC_KEY,
-                hash,
-                limit: 100
-            }
-        });
-        
-        res.json(response.data);
-    } catch (error) {
-        console.error('Errore nella chiamata all\'API Marvel:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Errore nella chiamata all\'API Marvel' 
-        });
-    }
-});
-
-// Endpoint per ottenere i personaggi Marvel con autenticazione
-app.get('/api/marvel/characters', authenticateToken, async (req, res) => {
-    try {
-        console.log('1. Richiesta per ottenere i personaggi Marvel ricevuta');
-        const ts = new Date().getTime();
-        const hash = crypto.createHash('md5').update(ts + MARVEL_PRIVATE_KEY + MARVEL_PUBLIC_KEY).digest('hex');
-        
-        console.log('2. Parametri API Marvel:');
-        console.log('- Timestamp:', ts);
-        console.log('- Public Key:', MARVEL_PUBLIC_KEY);
-        console.log('- Hash:', hash);
-        
-        // Configura axios con timeout più lungo e retry
-        const axiosInstance = axios.create({
-            timeout: 30000, // 30 secondi
-            maxRedirects: 5,
-            validateStatus: function (status) {
-                return status >= 200 && status < 300;
-            }
-        });
-
-        const url = 'https://gateway.marvel.com/v1/public/characters';
-        console.log('3. Tentativo di chiamata all\'API Marvel...');
-        console.log('- URL:', url);
-        console.log('- Parametri completi:', {
-            ts,
-            apikey: MARVEL_PUBLIC_KEY,
-            hash,
-            limit: 50
-        });
-
-        try {
-            // Prima verifica la connettività generale
-            await axios.get('https://www.google.com');
-            console.log('Connessione internet verificata');
-        } catch (error) {
-            console.error('Errore nella verifica della connessione internet:', error.message);
-            throw new Error('Problema di connessione internet');
-        }
-        
-        const response = await axiosInstance.get(url, {
-            params: {
-                ts,
-                apikey: MARVEL_PUBLIC_KEY,
-                hash,
-                limit: 50
-            }
-        });
-        
-        console.log('4. Risposta ricevuta dall\'API Marvel');
-        console.log('- Status:', response.status);
-        console.log('- Headers:', response.headers);
-        console.log('- Data:', JSON.stringify(response.data, null, 2));
-        
-        res.json({
-            success: true,
-            data: response.data.data
-        });
-    } catch (error) {
-        console.error('Errore nella chiamata all\'API Marvel:');
-        console.error('- Message:', error.message);
-        console.error('- Stack:', error.stack);
-        if (error.response) {
-            console.error('- Response Status:', error.response.status);
-            console.error('- Response Data:', error.response.data);
-            console.error('- Response Headers:', error.response.headers);
-        }
-        if (error.request) {
-            console.error('- Request:', error.request);
-        }
-        if (error.config) {
-            console.error('- Request Config:', {
-                url: error.config.url,
-                method: error.config.method,
-                headers: error.config.headers,
-                params: error.config.params
-            });
-        }
-        res.status(500).json({ 
-            success: false, 
-            message: 'Errore nella chiamata all\'API Marvel',
-            error: error.message,
-            details: error.response ? error.response.data : null
-        });
     }
 });
 
@@ -933,7 +871,7 @@ const initializeDefaultAvatar = async () => {
             throw new Error(`File locale non trovato in: ${localImagePath}`);
         }
 
-        const defaultAvatarPath = 'marvel/user/default-avatar.png';
+        const defaultAvatarPath = 'harry-potter/user/default-avatar.png';
         const defaultAvatarRef = ref(storage, defaultAvatarPath);
         
         try {

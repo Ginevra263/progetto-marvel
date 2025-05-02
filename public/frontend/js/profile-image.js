@@ -1,6 +1,6 @@
 // Gestione centralizzata dell'immagine del profilo di default 
 const ProfileImage = {
-    defaultImage: 'https://firebasestorage.googleapis.com/v0/b/marvel-album.appspot.com/o/marvel%2Fuser%2Fdefault-avatar.png?alt=media',
+    defaultImage: 'images/default-avatar.png',
 
     // Aggiorna l'immagine del profilo in tutte le pagine
     updateProfileImage: function(imageUrl) {

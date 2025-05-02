@@ -247,17 +247,14 @@ async function buyCardPack() {
 }
 
 // Funzione per visualizzare i dettagli di un supereroe
-async function showHeroDetails(heroId) {
+async function showCharacterDetails(characterId) {
     try {
-        const timestamp = new Date().getTime();
-        const hash = CryptoJS.MD5(timestamp + PRIVATE_KEY + PUBLIC_KEY).toString();
-        const url = `https://gateway.marvel.com/v1/public/characters/${heroId}?ts=${timestamp}&apikey=${PUBLIC_KEY}&hash=${hash}`;
-        
+        const url = "https://hp-api.onrender.com/api/characters";    
         const response = await fetch(url);
         const data = await response.json();
         if (data.data.results.length > 0) {
-            const hero = data.data.results[0];
-            showHeroModal(hero);
+            const character = data.data.results[0];
+            showCharacterModal(character);
         }
     } catch (error) {
         console.error('Errore nel caricamento dei dettagli:', error);
@@ -327,22 +324,22 @@ async function loadAvailableTrades() {
 }
 
 // Funzione per mostrare una modale con i dettagli del supereroe
-function showHeroModal(hero) {
+function showCharacterModal(character) {
     const modalContent = `
-        <h2>${hero.name}</h2>
-        <img src="${hero.thumbnail.path}.${hero.thumbnail.extension}" alt="${hero.name}" style="max-width: 300px;">
-        <p>${hero.description || 'Nessuna descrizione disponibile'}</p>
+        <h2>${character.name}</h2>
+        <img src="${character.thumbnail.path}.${character.thumbnail.extension}" alt="${character.name}" style="max-width: 300px;">
+        <p>${character.description || 'Nessuna descrizione disponibile'}</p>
         <h3>Series:</h3>
-        <ul>${hero.series.items.map(s => `<li>${s.name}</li>`).join('')}</ul>
+        <ul>${character.series.items.map(s => `<li>${s.name}</li>`).join('')}</ul>
         <h3>Events:</h3>
-        <ul>${hero.events.items.map(e => `<li>${e.name}</li>`).join('')}</ul>
+        <ul>${character.events.items.map(e => `<li>${e.name}</li>`).join('')}</ul>
         <h3>Comics:</h3>
-        <ul>${hero.comics.items.map(c => `<li>${c.name}</li>`).join('')}</ul>
+        <ul>${character.comics.items.map(c => `<li>${c.name}</li>`).join('')}</ul>
     `;
     
-    document.getElementById('heroDetailsModal').innerHTML = modalContent;
+    document.getElementById('characterDetailsModal').innerHTML = modalContent;
     // Mostra la modale (assumendo che tu stia usando Bootstrap o una libreria simile)
-    $('#heroDetailsModal').modal('show');
+    $('#characterDetailsModal').modal('show');
 }
 
 // Funzione per mostrare le nuove carte ottenute
@@ -448,17 +445,17 @@ function updateDashboardStats() {
     
     // Ottieni il numero totale di eroi disponibili
     // Prova a ottenere il numero di eroi dall'API Marvel
-    let totalHeroes = 0;
-    const marvelHeroes = localStorage.getItem('marvelHeroes');
-    if (marvelHeroes) {
+    let totalCharacters = 0;
+    const PotterCharacters = localStorage.getItem('PotterCharacters');
+    if (PotterCharacters) {
         try {
-            totalHeroes = JSON.parse(marvelHeroes).length;
+            totalCharacters = JSON.parse(PotterCharacters).length;
         } catch (e) {
             console.error('Errore nel parsing degli eroi Marvel:', e);
-            totalHeroes = 50; // Fallback a 50 se c'è un errore
+            totalCharacters = 50; // Fallback a 50 se c'è un errore
         }
     } else {
-        totalHeroes = 50; // Fallback a 50 se non ci sono dati
+        totalCharacters = 50; // Fallback a 50 se non ci sono dati
     }
     
     // Aggiorna i contatori base con controlli di sicurezza
@@ -515,7 +512,7 @@ function updateDashboardStats() {
     }
     
     // Calcola e aggiorna le figurine mancanti
-    const missingCards = totalHeroes - uniqueCards;
+    const missingCards = totalCharacters - uniqueCards;
     const missingCardsElement = document.getElementById('missing-cards');
     if (missingCardsElement) {
         missingCardsElement.textContent = missingCards;

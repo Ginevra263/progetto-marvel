@@ -1,5 +1,5 @@
 // Variabili globali
-let allHeroes = []; // Tutti gli eroi disponibili dall'API Marvel
+let allCards = []; // Tutte le carte disponibili (Harry Potter)
 let userCards = []; // Carte dell'utente
 let currentPage = 1;
 const cardsPerPage = 12;
@@ -75,8 +75,8 @@ async function loadUserData() {
             // Aggiorna l'interfaccia utente
             document.getElementById('user-credits').textContent = data.credits;
             
-            // Carica gli eroi Marvel e aggiorna la visualizzazione
-            await loadMarvelHeroes();
+            // Carica le carte di Harry Potter e aggiorna la visualizzazione
+            await loadHarryPotterCards();
             updateAlbumProgress();
             updateAlbumView();
         }
@@ -88,46 +88,45 @@ async function loadUserData() {
     }
 }
 
-// Funzione per caricare gli eroi Marvel
-async function loadMarvelHeroes() {
+// Funzione per caricare le carte di Harry Potter
+async function loadHarryPotterCards() {
     try {
-        console.log('1. Iniziando il caricamento degli eroi Marvel...');
+        console.log('Iniziando il caricamento delle carte di Harry Potter...');
         const token = localStorage.getItem('token');
         if (!token) {
-            console.error('2. Token non trovato nel localStorage');
+            console.error('Token non trovato nel localStorage');
             throw new Error('Token non trovato');
         }
-        console.log('3. Token trovato, effettuo la richiesta all\'API...');
         
-        const response = await fetch('http://localhost:3000/api/marvel/characters', {
+        const response = await fetch('http://localhost:3000/api/harrypotter/cards', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
         });
         
-        console.log('4. Risposta ricevuta dall\'API');
+        console.log('Risposta ricevuta dall\'API');
         console.log('- Status:', response.status);
         
         if (!response.ok) {
-            console.error('5. Errore nella risposta:', response.status, response.statusText);
+            console.error('Errore nella risposta:', response.status, response.statusText);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('6. Dati ricevuti:', data);
+        console.log('Dati ricevuti:', data);
         
-        if (!data.success || !data.data || !data.data.results) {
-            console.error('7. Dati non validi ricevuti:', data);
+        if (!data.success || !data.cards) {
+            console.error('Dati non validi ricevuti:', data);
             throw new Error('Dati non validi ricevuti dall\'API');
         }
         
-        console.log('8. Elaborazione dei dati degli eroi...');
-        const heroes = data.data.results;
-        console.log(`9. ${heroes.length} eroi caricati con successo`);
+        console.log('Elaborazione dei dati delle carte...');
+        allCards = data.cards;
+        console.log(`${allCards.length} carte caricate con successo`);
         
-        return heroes;
+        return allCards;
     } catch (error) {
-        console.error('Errore nel caricamento degli eroi Marvel:', error);
+        console.error('Errore nel caricamento delle carte di Harry Potter:', error);
         throw error;
     }
 }
@@ -137,7 +136,7 @@ function updateAlbumProgress() {
     updateCardArrays();
     
     const uniqueCards = collectedCards.length;
-    const totalCards = allHeroes.length || 50;
+    const totalCards = allCards.length || 50;
     const percentage = Math.round((uniqueCards / totalCards) * 100);
     const duplicateCount = duplicateCards.length;
     
@@ -158,7 +157,7 @@ function updateCardArrays() {
             cardGroups[cardId] = {
                 id: cardId,
                 name: card.name,
-                thumbnail: card.thumbnail,
+                thumbnail: card.thumbnail || card.image, // Supporta sia thumbnail che image
                 count: 0,
                 cards: [] // Array per tenere traccia di tutte le istanze della carta
             };
@@ -173,12 +172,12 @@ function updateCardArrays() {
     
     // Aggiorna le carte mancanti
     const userCardIds = new Set(Object.keys(cardGroups));
-    missingCards = allHeroes
-        .filter(hero => !userCardIds.has(hero.id.toString()))
-        .map(hero => ({
-            id: hero.id.toString(),
-            name: hero.name,
-            thumbnail: `${hero.thumbnail.path}.${hero.thumbnail.extension}`,
+    missingCards = allCards
+        .filter(card => !userCardIds.has(card.id.toString()))
+        .map(card => ({
+            id: card.id.toString(),
+            name: card.name,
+            thumbnail: card.image || card.thumbnail, // Supporta entrambi i formati
             count: 0
         }));
 

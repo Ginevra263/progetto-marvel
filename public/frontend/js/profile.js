@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Validazione dei campi
         const username = document.getElementById('username').value.trim();
         const email = document.getElementById('email').value.trim();
+        const wizardCharacter = document.getElementById('wizardCharacter').value;
         const currentPassword = document.getElementById('current-password').value;
         const newPassword = document.getElementById('new-password').value;
         const confirmPassword = document.getElementById('confirm-password').value;
@@ -82,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Prepara i dati da inviare
             const userData = {
                 username,
-                email
+                email,
+                wizardCharacter
             };
 
             // Aggiungi le password se necessario
@@ -166,6 +168,9 @@ async function loadUserProfile() {
         if (data.success) {
             document.getElementById('username').value = data.user.username;
             document.getElementById('email').value = data.user.email;
+            if (data.user.wizardCharacter) {
+                document.getElementById('wizardCharacter').value = data.user.wizardCharacter;
+            }
             if (data.user.profile_image) {
                 document.getElementById('profile-image-preview').src = data.user.profile_image;
             }
